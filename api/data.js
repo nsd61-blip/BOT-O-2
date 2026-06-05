@@ -1,6 +1,6 @@
 const https = require('https');
 
-const FILE_ID = '172V6swUVYznR1zIwuDS7qALCxgV962Vr';
+const FILE_ID = '1fE_-S3cEAzLS0SOA4rnEWGzE4y7bXOUo';
 const EXPORT_URL = `https://docs.google.com/spreadsheets/d/${FILE_ID}/export?format=xlsx`;
 
 module.exports = async (req, res) => {
@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
     }
 
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 's-maxage=300');
+    res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({ ok: true, total: records.length, data: records });
 
   } catch (err) {
