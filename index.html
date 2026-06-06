@@ -131,6 +131,8 @@ tbody td{padding:7px 10px;color:var(--text);}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 @media(max-width:960px){.grid-2,.grid-3,.grid-12,.grid-21{grid-template-columns:1fr;}.main{padding:12px;}.header{padding:0 12px;}.nav{padding:0 8px;}}
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
@@ -161,6 +163,7 @@ tbody td{padding:7px 10px;color:var(--text);}
   <div class="nav-tab" data-tab="geo" onclick="switchTab(this)">📍 Geográfico</div>
   <div class="nav-tab" data-tab="evolucao" onclick="switchTab(this)">📈 Evolução de Bairros</div>
   <div class="nav-tab" data-tab="heatmap" onclick="switchTab(this)">🔥 Heatmap Histórico</div>
+  <div class="nav-tab" data-tab="mapa" onclick="switchTab(this)">🗺️ Mapa de Falhas</div>
   <div class="nav-tab" data-tab="dinamica" onclick="switchTab(this)">📋 Dinâmica de Endereços</div>
   <div class="nav-tab" data-tab="pareto" onclick="switchTab(this)">📊 Pareto Bairros</div>
 </nav>
@@ -334,23 +337,36 @@ tbody td{padding:7px 10px;color:var(--text);}
     </div>
     <div class="vsep"></div>
     <div class="filter-group">
-      <div class="filter-label">Mês Atual (selecione 1)</div>
+      <div class="filter-label">Mês de Referência (selecione 1)</div>
       <div class="month-chips" id="ev-mes-chips"></div>
     </div>
+    <div class="vsep"></div>
+    <div class="filter-group">
+      <div class="filter-label">Comparar com</div>
+      <div style="display:flex;gap:6px;">
+        <button id="ev-per-1" class="causa-btn causa-active" onclick="setEvPeriodo(1)">M-1</button>
+        <button id="ev-per-2" class="causa-btn" onclick="setEvPeriodo(2)">M-2</button>
+        <button id="ev-per-3" class="causa-btn" onclick="setEvPeriodo(3)">M-3</button>
+      </div>
+    </div>
   </div>
-  <div class="grid-2 mb16">
+
+  <!-- Info período -->
+  <div id="ev-periodo-info" style="margin-top:12px;font-size:12px;color:var(--muted);padding:8px 12px;background:rgba(255,255,255,.03);border-radius:8px;border:1px solid var(--border);"></div>
+
+  <div class="grid-2 mb16" style="margin-top:14px;">
     <div class="card">
       <div class="card-title"><span class="ct-dot green"></span>🏆 TOP 20 — Maior Redução</div>
-      <div id="rank-melhoria" style="max-height:480px;overflow-y:auto;"></div>
+      <div id="rank-melhoria" style="max-height:520px;overflow-y:auto;"></div>
     </div>
     <div class="card">
       <div class="card-title"><span class="ct-dot red"></span>⚠️ TOP 20 — Maior Aumento</div>
-      <div id="rank-piora" style="max-height:480px;overflow-y:auto;"></div>
+      <div id="rank-piora" style="max-height:520px;overflow-y:auto;"></div>
     </div>
   </div>
   <div class="card">
     <div class="card-title"><span class="ct-dot blue"></span>Evolução Completa — Todos os Bairros/Cidades</div>
-    <div id="evolucao-full" style="max-height:460px;overflow-y:auto;"></div>
+    <div id="evolucao-full" style="max-height:500px;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -556,6 +572,64 @@ tbody td{padding:7px 10px;color:var(--text);}
   </div>
 </div>
 
+
+<!-- ═══ MAPA ═══ -->
+<div id="tab-mapa" class="tab-panel">
+  <!-- Filtros -->
+  <div class="filter-bar" style="flex-wrap:wrap;gap:10px;">
+    <div class="filter-group">
+      <div class="filter-label">Ano</div>
+      <select id="map-ano" onchange="renderMapa()">
+        <option value="ALL">Todos os Anos</option>
+      </select>
+    </div>
+    <div class="vsep"></div>
+    <div class="filter-group">
+      <div class="filter-label">Causa</div>
+      <select id="map-causa" onchange="renderMapa()">
+        <option value="ALL">Fibra + Cabo</option>
+        <option value="FIBRA">Fibra</option>
+        <option value="CABO">Cabo</option>
+      </select>
+    </div>
+    <div class="vsep"></div>
+    <div class="filter-group">
+      <div class="filter-label">Região</div>
+      <select id="map-ci" onchange="renderMapa()">
+        <option value="ALL">Capital + Interior</option>
+        <option value="CAPITAL">Capital</option>
+        <option value="INTERIOR">Interior</option>
+      </select>
+    </div>
+    <div class="vsep"></div>
+    <div class="filter-group">
+      <div class="filter-label">Top bairros</div>
+      <select id="map-top" onchange="renderMapa()">
+        <option value="50">Top 50</option>
+        <option value="100">Top 100</option>
+        <option value="9999" selected>Todos</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;" id="map-stats"></div>
+
+  <!-- Legenda -->
+  <div style="display:flex;align-items:center;gap:16px;margin-top:12px;flex-wrap:wrap;font-size:11px;color:var(--muted);">
+    <span style="font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Intensidade:</span>
+    <div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:50%;background:#00c8ff;opacity:.7;"></div>Baixa (1–50)</div>
+    <div style="display:flex;align-items:center;gap:5px;"><div style="width:14px;height:14px;border-radius:50%;background:#ffa500;opacity:.85;"></div>Média (51–150)</div>
+    <div style="display:flex;align-items:center;gap:5px;"><div style="width:18px;height:18px;border-radius:50%;background:#ff4d6d;opacity:.9;"></div>Alta (151+)</div>
+    <span style="margin-left:8px;color:var(--muted);">Tamanho do círculo proporcional ao volume de falhas · Clique para detalhes</span>
+  </div>
+
+  <!-- Mapa -->
+  <div class="card" style="margin-top:12px;padding:0;overflow:hidden;">
+    <div id="mapa-sp" style="height:580px;width:100%;border-radius:12px;"></div>
+  </div>
+</div>
+
 </main>
 
 <script>
@@ -566,6 +640,7 @@ const MS = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','D
 let DATA = [], ANOS = [], charts = {};
 const selMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[] };
 let ovCausa = 'ALL';
+let evPeriodo = 1;
 const availMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[] };
 
 function dc(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
@@ -585,6 +660,7 @@ function switchTab(el){
   if(tab==='heatmap')  renderHeatmap();
   if(tab==='dinamica') renderDinamica();
   if(tab==='pareto')    renderPareto();
+  if(tab==='mapa')      initMapa();
 }
 
 function fd(ano, meses, ci, causa){
@@ -894,21 +970,140 @@ function renderGeo(){
     +'</tr></thead><tbody>'+rows+'</tbody></table>';
 }
 // ── EVOLUCAO ──
+
+function setEvPeriodo(n) {
+  evPeriodo = n;
+  [1,2,3].forEach(function(i) {
+    var btn = document.getElementById('ev-per-'+i);
+    if (btn) btn.classList.toggle('causa-active', i === n);
+  });
+  renderEvolucao();
+}
 function renderEvolucao(){
-  const ano=gv('ev-ano');
-  const mes=selMeses.ev[0]||availMeses.ev[availMeses.ev.length-1];
-  if(!mes) return;
-  const idx=MO.indexOf(mes);
-  const pMes=idx>0?MO[idx-1]:'DEZEMBRO',pAno=idx>0?ano:String(parseInt(ano)-1);
-  const bA={},bP={};
-  fd(ano,[mes],'ALL','ALL').forEach(r=>{bA[r.B]=(bA[r.B]||0)+1;});
-  fd(pAno,[pMes],'ALL','ALL').forEach(r=>{bP[r.B]=(bP[r.B]||0)+1;});
-  const all=[...new Set([...Object.keys(bA),...Object.keys(bP)])];
-  const rows=all.map(b=>{const cur=bA[b]||0,prev=bP[b]||0,diff=cur-prev;const pct=prev>0?((diff/prev)*100).toFixed(1):(cur>0?'+∞':'0.0');return{b,cur,prev,diff,pct,trend:diff<-1?'🟢':diff>1?'🔴':'⚪'};}).filter(r=>r.cur>0||r.prev>0);
-  const mkT=(items,type)=>items.length===0?`<p style="color:var(--muted);padding:12px;">Nenhum registro.</p>`:`<table><thead><tr><th>#</th><th>Bairro</th><th>${pMes}/${pAno}</th><th>${mes}/${ano}</th><th>${type==='red'?'Redução':'Aumento'}</th><th>%</th></tr></thead><tbody>${items.map(({b,cur,prev,diff,pct},i)=>`<tr><td class="rank-num">#${i+1}</td><td class="bairro-name">${b}</td><td class="num-cell">${prev}</td><td class="num-cell">${cur}</td><td class="num-cell" style="color:${type==='red'?'var(--accent3)':'var(--accent2)'}">${type==='red'?'▼':'▲'} ${Math.abs(diff)}</td><td class="pct-cell">${pct}%</td></tr>`).join('')}</tbody></table>`;
-  document.getElementById('rank-melhoria').innerHTML=mkT(rows.filter(r=>r.diff<0).sort((a,b)=>a.diff-b.diff).slice(0,20),'red');
-  document.getElementById('rank-piora').innerHTML=mkT(rows.filter(r=>r.diff>0).sort((a,b)=>b.diff-a.diff).slice(0,20),'up');
-  document.getElementById('evolucao-full').innerHTML=`<table><thead><tr><th>Bairro</th><th>${pMes}/${pAno}</th><th>${mes}/${ano}</th><th>Diff</th><th>%</th><th></th></tr></thead><tbody>${rows.sort((a,b)=>b.cur-a.cur).map(({b,cur,prev,diff,pct,trend})=>`<tr><td class="bairro-name">${b}</td><td class="num-cell">${prev}</td><td class="num-cell">${cur}</td><td class="num-cell" style="color:${diff>0?'var(--accent2)':diff<0?'var(--accent3)':'var(--muted)'}">${diff>0?'▲':diff<0?'▼':'●'} ${Math.abs(diff)}</td><td class="pct-cell">${pct}%</td><td>${trend}</td></tr>`).join('')}</tbody></table>`;
+  var ano = gv('ev-ano');
+  var mes = selMeses.ev[0] || availMeses.ev[availMeses.ev.length-1];
+  if (!mes) return;
+
+  // Helper: get month N periods back
+  function getMesBack(baseMes, baseAno, n) {
+    var idx = MO.indexOf(baseMes);
+    var m = idx, a = parseInt(baseAno);
+    for (var i = 0; i < n; i++) {
+      m--;
+      if (m < 0) { m = 11; a--; }
+    }
+    return { mes: MO[m], ano: String(a) };
+  }
+
+  var cur  = { mes: mes, ano: ano };
+  var prev = getMesBack(mes, ano, evPeriodo);
+
+  // Count falhas por bairro em cada período
+  var bCur = {}, bPrev = {};
+  fd(cur.ano,  [cur.mes],  'ALL','ALL').forEach(function(r){ if(r.B) bCur[r.B]  = (bCur[r.B]  || 0) + 1; });
+  fd(prev.ano, [prev.mes], 'ALL','ALL').forEach(function(r){ if(r.B) bPrev[r.B] = (bPrev[r.B] || 0) + 1; });
+
+  // Para M-2 e M-3, também acumula os meses intermediários como contexto
+  var midCols = [];
+  if (evPeriodo > 1) {
+    for (var p = 1; p < evPeriodo; p++) {
+      var mid = getMesBack(mes, ano, p);
+      var bMid = {};
+      fd(mid.ano, [mid.mes], 'ALL','ALL').forEach(function(r){ if(r.B) bMid[r.B] = (bMid[r.B]||0)+1; });
+      midCols.push({ label: MS[MO.indexOf(mid.mes)]+'/'+mid.ano, data: bMid });
+    }
+    midCols.reverse(); // cronológico
+  }
+
+  var allB = Object.keys(Object.assign({}, bCur, bPrev));
+  midCols.forEach(function(mc){ Object.keys(mc.data).forEach(function(b){ if(allB.indexOf(b)<0) allB.push(b); }); });
+
+  var rows = allB.map(function(b) {
+    var c = bCur[b]||0, pv = bPrev[b]||0;
+    var diff = c - pv;
+    var pct  = pv > 0 ? ((diff/pv)*100).toFixed(1) : (c > 0 ? '+∞' : '0.0');
+    var trend = diff < -1 ? '🟢' : diff > 1 ? '🔴' : '⚪';
+    var mids  = midCols.map(function(mc){ return mc.data[b]||0; });
+    return { b:b, cur:c, prev:pv, diff:diff, pct:pct, trend:trend, mids:mids };
+  }).filter(function(r){ return r.cur > 0 || r.prev > 0; });
+
+  // Info bar
+  var periodLabel = 'M-' + evPeriodo + ': comparando ' + MS[MO.indexOf(cur.mes)] + '/' + cur.ano + ' vs ' + MS[MO.indexOf(prev.mes)] + '/' + prev.ano;
+  var infoEl = document.getElementById('ev-periodo-info');
+  if (infoEl) infoEl.innerHTML =
+    '<span style="color:var(--accent);font-weight:600;">' + MS[MO.indexOf(cur.mes)] + '/' + cur.ano + '</span>'
+    + ' comparado com '
+    + '<span style="color:var(--accent4);font-weight:600;">' + MS[MO.indexOf(prev.mes)] + '/' + prev.ano + '</span>'
+    + (evPeriodo > 1 ? ' <span style="color:var(--muted);">(saltando ' + evPeriodo + ' meses atrás)</span>' : '')
+    + ' &nbsp;·&nbsp; <span style="color:var(--accent3);">'
+    + rows.filter(function(r){ return r.diff < 0; }).length + ' bairros reduziram</span>'
+    + ' &nbsp;·&nbsp; <span style="color:var(--accent2);">'
+    + rows.filter(function(r){ return r.diff > 0; }).length + ' bairros aumentaram</span>';
+
+  // Mid cols headers
+  var midHeaders = midCols.map(function(mc){ return '<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">'+mc.label+'</th>'; }).join('');
+  var thStyle = 'padding:6px 8px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;';
+  var thStyleL = 'padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;';
+
+  function mkTable(items, type) {
+    if (!items.length) return '<p style="color:var(--muted);padding:12px;">Nenhum registro.</p>';
+    var color = type === 'red' ? 'var(--accent3)' : 'var(--accent2)';
+    var arrow = type === 'red' ? '▼' : '▲';
+    var rrows = items.map(function(r, i) {
+      var midCells = r.mids.map(function(v){ return '<td style="padding:5px 8px;text-align:right;color:var(--muted);font-size:11px;">'+v+'</td>'; }).join('');
+      return '<tr style="border-bottom:1px solid rgba(255,255,255,.03);">'
+        +'<td style="padding:5px 8px;color:var(--muted);font-size:11px;">'+(i+1<10?'0'+(i+1):i+1)+'</td>'
+        +'<td style="padding:5px 8px;font-weight:600;color:var(--text);font-size:12px;">'+r.b+'</td>'
+        +'<td style="padding:5px 8px;text-align:right;color:var(--muted);font-size:11px;">'+r.prev+'</td>'
+        + midCells
+        +'<td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--accent);font-size:12px;">'+r.cur+'</td>'
+        +'<td style="padding:5px 8px;text-align:right;font-weight:700;color:'+color+';font-size:12px;">'+arrow+' '+Math.abs(r.diff)+'</td>'
+        +'<td style="padding:5px 8px;text-align:right;color:'+color+';font-size:11px;">'+r.pct+'%</td>'
+        +'</tr>';
+    }).join('');
+    return '<table style="width:100%;border-collapse:collapse;">'
+      +'<thead><tr style="border-bottom:1px solid var(--border);">'
+      +'<th style="'+thStyleL+'">#</th>'
+      +'<th style="'+thStyleL+'">Bairro / Cidade</th>'
+      +'<th style="'+thStyle+'">'+MS[MO.indexOf(prev.mes)]+'/'+prev.ano+'</th>'
+      + midHeaders
+      +'<th style="'+thStyle+'">'+MS[MO.indexOf(cur.mes)]+'/'+cur.ano+'</th>'
+      +'<th style="'+thStyle+'">'+(type==='red'?'Redução':'Aumento')+'</th>'
+      +'<th style="'+thStyle+'">%</th>'
+      +'</tr></thead><tbody>'+rrows+'</tbody></table>';
+  }
+
+  document.getElementById('rank-melhoria').innerHTML = mkTable(
+    rows.filter(function(r){ return r.diff < 0; }).sort(function(a,b){ return a.diff - b.diff; }).slice(0,20), 'red');
+  document.getElementById('rank-piora').innerHTML = mkTable(
+    rows.filter(function(r){ return r.diff > 0; }).sort(function(a,b){ return b.diff - a.diff; }).slice(0,20), 'up');
+
+  // Full table
+  var fullRows = rows.slice().sort(function(a,b){ return b.cur - a.cur; }).map(function(r) {
+    var midCells = r.mids.map(function(v){ return '<td style="padding:5px 8px;text-align:right;color:var(--muted);font-size:11px;">'+v+'</td>'; }).join('');
+    var dc = r.diff > 0 ? 'var(--accent2)' : r.diff < 0 ? 'var(--accent3)' : 'var(--muted)';
+    var da = r.diff > 0 ? '▲' : r.diff < 0 ? '▼' : '●';
+    return '<tr style="border-bottom:1px solid rgba(255,255,255,.03);">'
+      +'<td style="padding:5px 8px;font-weight:600;color:var(--text);font-size:12px;">'+r.b+'</td>'
+      +'<td style="padding:5px 8px;text-align:right;color:var(--muted);font-size:11px;">'+r.prev+'</td>'
+      + midCells
+      +'<td style="padding:5px 8px;text-align:right;font-weight:700;color:var(--accent);font-size:12px;">'+r.cur+'</td>'
+      +'<td style="padding:5px 8px;text-align:right;font-weight:700;color:'+dc+';font-size:12px;">'+da+' '+Math.abs(r.diff)+'</td>'
+      +'<td style="padding:5px 8px;text-align:right;color:'+dc+';font-size:11px;">'+r.pct+'%</td>'
+      +'<td style="padding:5px 8px;font-size:13px;">'+r.trend+'</td>'
+      +'</tr>';
+  }).join('');
+  document.getElementById('evolucao-full').innerHTML =
+    '<table style="width:100%;border-collapse:collapse;">'
+    +'<thead><tr style="border-bottom:1px solid var(--border);">'
+    +'<th style="'+thStyleL+'">Bairro / Cidade</th>'
+    +'<th style="'+thStyle+'">'+MS[MO.indexOf(prev.mes)]+'/'+prev.ano+'</th>'
+    + midHeaders
+    +'<th style="'+thStyle+'">'+MS[MO.indexOf(cur.mes)]+'/'+cur.ano+'</th>'
+    +'<th style="'+thStyle+'">Diff</th>'
+    +'<th style="'+thStyle+'">%</th>'
+    +'<th style="'+thStyle+'"></th>'
+    +'</tr></thead><tbody>'+fullRows+'</tbody></table>';
 }
 
 // ── HEATMAP ──
@@ -1328,6 +1523,120 @@ function restoreState(){
       if(tab) switchTab(tab);
     } else { renderOverview(); }
   }catch(e){ renderOverview(); }
+}
+
+
+// ── MAPA DE FALHAS ──────────────────────────────────────
+const MAP_COORDS = [{"b": "GUARULHOS", "lat": -23.4543, "lng": -46.5332, "v": 389}, {"b": "SANTO AMARO", "lat": -23.6505, "lng": -46.7142, "v": 340}, {"b": "BARUERI", "lat": -23.5114, "lng": -46.8762, "v": 247}, {"b": "ITAIM PAULISTA", "lat": -23.5012, "lng": -46.402, "v": 211}, {"b": "CAPÃO REDONDO", "lat": -23.6687, "lng": -46.7789, "v": 203}, {"b": "CAMPINAS", "lat": -22.9056, "lng": -47.0608, "v": 182}, {"b": "OSASCO", "lat": -23.5324, "lng": -46.7919, "v": 180}, {"b": "SÃO BERNARDO DO CAMPO", "lat": -23.6939, "lng": -46.565, "v": 172}, {"b": "SANTO ANDRÉ", "lat": -23.6639, "lng": -46.5383, "v": 168}, {"b": "RIBEIRÃO PRETO", "lat": -21.1704, "lng": -47.8103, "v": 152}, {"b": "PIRITUBA", "lat": -23.4823, "lng": -46.7361, "v": 145}, {"b": "SOCORRO", "lat": -23.5981, "lng": -46.6389, "v": 141}, {"b": "ITAQUERA", "lat": -23.5407, "lng": -46.4551, "v": 141}, {"b": "PENHA", "lat": -23.5197, "lng": -46.5303, "v": 140}, {"b": "MOOCA", "lat": -23.5565, "lng": -46.5957, "v": 138}, {"b": "SÃO MATEUS", "lat": -23.6078, "lng": -46.4519, "v": 134}, {"b": "VILA LEOPOLDINA", "lat": -23.53, "lng": -46.7394, "v": 133}, {"b": "BRÁS", "lat": -23.5459, "lng": -46.6147, "v": 132}, {"b": "VILA JACUI", "lat": -23.4982, "lng": -46.4434, "v": 130}, {"b": "COTIA", "lat": -23.6042, "lng": -46.9199, "v": 128}, {"b": "ITAQUAQUECETUBA", "lat": -23.4867, "lng": -46.3488, "v": 128}, {"b": "DIADEMA", "lat": -23.686, "lng": -46.6203, "v": 123}, {"b": "TATUAPÉ", "lat": -23.5408, "lng": -46.5602, "v": 123}, {"b": "VILA MARIA", "lat": -23.5063, "lng": -46.5928, "v": 121}, {"b": "JAGUARÉ", "lat": -23.5479, "lng": -46.7528, "v": 120}, {"b": "VILA ANDRADE", "lat": -23.6413, "lng": -46.7278, "v": 110}, {"b": "JABAQUARA", "lat": -23.648, "lng": -46.647, "v": 109}, {"b": "LAPA", "lat": -23.5251, "lng": -46.7032, "v": 100}, {"b": "MAUÁ", "lat": -23.6678, "lng": -46.4619, "v": 98}, {"b": "GUAIANASES", "lat": -23.5482, "lng": -46.3843, "v": 95}, {"b": "CURUÇA", "lat": -23.4822, "lng": -46.3831, "v": 93}, {"b": "SÃO MIGUEL PAULISTA", "lat": -23.4959, "lng": -46.4419, "v": 92}, {"b": "PINHEIROS", "lat": -23.5614, "lng": -46.696, "v": 88}, {"b": "ÁGUA BRANCA", "lat": -23.5214, "lng": -46.683, "v": 79}, {"b": "CARRÃO", "lat": -23.5464, "lng": -46.5371, "v": 77}, {"b": "BARRA FUNDA", "lat": -23.5261, "lng": -46.6644, "v": 76}, {"b": "SANTANA DE PARNAÍBA", "lat": -23.4437, "lng": -46.9178, "v": 73}, {"b": "SÃO VICENTE", "lat": -23.9608, "lng": -46.3878, "v": 70}, {"b": "CARAPICUÍBA", "lat": -23.5237, "lng": -46.835, "v": 70}, {"b": "VILA MARIANA", "lat": -23.5882, "lng": -46.6374, "v": 70}, {"b": "SÃO JOSÉ DOS CAMPOS", "lat": -23.1794, "lng": -45.8869, "v": 67}, {"b": "EMBU DAS ARTES", "lat": -23.6489, "lng": -46.8514, "v": 62}, {"b": "TABOÃO DA SERRA", "lat": -23.6103, "lng": -46.7573, "v": 61}, {"b": "SAPOPEMBA", "lat": -23.585, "lng": -46.4749, "v": 61}, {"b": "GUARUJÁ", "lat": -23.9929, "lng": -46.2569, "v": 58}, {"b": "CAMBUCI", "lat": -23.5675, "lng": -46.6247, "v": 58}, {"b": "LIBERDADE", "lat": -23.5597, "lng": -46.6349, "v": 58}, {"b": "SOROCABA", "lat": -23.5015, "lng": -47.4526, "v": 58}, {"b": "SUZANO", "lat": -23.5422, "lng": -46.3116, "v": 58}, {"b": "LAJEADO", "lat": -23.553, "lng": -46.4022, "v": 58}, {"b": "CAMPO LIMPO", "lat": -23.6302, "lng": -46.754, "v": 56}, {"b": "BUTANTÃ", "lat": -23.5629, "lng": -46.7257, "v": 55}, {"b": "POÁ", "lat": -23.5253, "lng": -46.3444, "v": 54}, {"b": "CAMPO BELO", "lat": -23.6178, "lng": -46.6694, "v": 52}, {"b": "VILA GUILHERME", "lat": -23.5175, "lng": -46.6004, "v": 52}, {"b": "PONTE RASA", "lat": -23.5228, "lng": -46.5069, "v": 51}, {"b": "MORUMBI", "lat": -23.5933, "lng": -46.72, "v": 47}, {"b": "JARDIM SÃO LUIS", "lat": -23.68, "lng": -46.74, "v": 46}, {"b": "ITAPEVI", "lat": -23.5492, "lng": -46.9344, "v": 46}, {"b": "BELA VISTA", "lat": -23.5589, "lng": -46.6439, "v": 45}, {"b": "JUNDIAÍ", "lat": -23.1864, "lng": -46.8964, "v": 44}, {"b": "CANGAÍBA", "lat": -23.5044, "lng": -46.5119, "v": 43}, {"b": "BELENZINHO", "lat": -23.5383, "lng": -46.5983, "v": 43}, {"b": "BAURU", "lat": -22.3246, "lng": -49.0653, "v": 42}, {"b": "MOGI DAS CRUZES", "lat": -23.5222, "lng": -46.1875, "v": 42}, {"b": "ERMELINO MATARAZZO", "lat": -23.5011, "lng": -46.4731, "v": 41}, {"b": "IPIRANGA", "lat": -23.5913, "lng": -46.6089, "v": 40}, {"b": "VILA ANASTÁCIO", "lat": -23.5244, "lng": -46.7261, "v": 40}, {"b": "GRAJAÚ", "lat": -23.7, "lng": -46.68, "v": 39}, {"b": "RIO PEQUENO", "lat": -23.5608, "lng": -46.7603, "v": 38}, {"b": "JARDIM PAULISTA", "lat": -23.5739, "lng": -46.6641, "v": 37}, {"b": "CASA VERDE", "lat": -23.5023, "lng": -46.6612, "v": 37}, {"b": "FERRAZ DE VASCONCELOS", "lat": -23.5414, "lng": -46.3683, "v": 36}, {"b": "CIDADE LÍDER", "lat": -23.5658, "lng": -46.4882, "v": 34}, {"b": "LIMÃO", "lat": -23.5033, "lng": -46.6789, "v": 33}, {"b": "FRANCISCO MORATO", "lat": -23.2817, "lng": -46.7453, "v": 33}, {"b": "BRASILÂNDIA", "lat": -23.45, "lng": -46.6967, "v": 33}, {"b": "SÃO JOSÉ DO RIO PRETO", "lat": -20.8197, "lng": -49.3797, "v": 32}, {"b": "PIRACICABA", "lat": -22.7253, "lng": -47.6492, "v": 32}, {"b": "SANTANA", "lat": -23.5008, "lng": -46.6275, "v": 31}, {"b": "ITAIM BIBI", "lat": -23.5867, "lng": -46.6789, "v": 29}, {"b": "CIDADE TIRADENTES", "lat": -23.5873, "lng": -46.3883, "v": 29}, {"b": "FREGUESIA DO Ó", "lat": -23.4895, "lng": -46.6943, "v": 26}, {"b": "VILA PRUDENTE", "lat": -23.578, "lng": -46.5649, "v": 26}, {"b": "JARAGUÁ", "lat": -23.4428, "lng": -46.7611, "v": 25}, {"b": "PERUS", "lat": -23.3939, "lng": -46.7378, "v": 24}, {"b": "SÃO CAETANO DO SUL", "lat": -23.6228, "lng": -46.5508, "v": 23}, {"b": "VILA FORMOSA", "lat": -23.54, "lng": -46.5218, "v": 23}, {"b": "ARICANDUVA", "lat": -23.5467, "lng": -46.5249, "v": 22}, {"b": "SANTOS", "lat": -23.9608, "lng": -46.3336, "v": 21}, {"b": "ARTUR ALVIM", "lat": -23.5356, "lng": -46.5022, "v": 21}, {"b": "PARELHEIROS", "lat": -23.7975, "lng": -46.7307, "v": 20}, {"b": "VILA SÔNIA", "lat": -23.59, "lng": -46.74, "v": 18}, {"b": "CURSINO", "lat": -23.6108, "lng": -46.6053, "v": 18}, {"b": "TUCURUVI", "lat": -23.4847, "lng": -46.6046, "v": 17}, {"b": "PRAIA GRANDE", "lat": -24.0056, "lng": -46.4033, "v": 16}, {"b": "CIDADE ADEMAR", "lat": -23.67, "lng": -46.67, "v": 16}, {"b": "SÃO DOMINGOS", "lat": -23.5033, "lng": -46.7503, "v": 15}, {"b": "VILA NOVA CACHOEIRINHA", "lat": -23.4669, "lng": -46.6567, "v": 15}, {"b": "MOEMA", "lat": -23.6011, "lng": -46.665, "v": 14}, {"b": "JARDIM HELENA", "lat": -23.51, "lng": -46.43, "v": 14}, {"b": "SAÚDE", "lat": -23.6178, "lng": -46.6282, "v": 13}, {"b": "MANDAQUI", "lat": -23.4883, "lng": -46.6245, "v": 13}, {"b": "CONSOLAÇÃO", "lat": -23.5511, "lng": -46.6538, "v": 11}, {"b": "AMERICANA", "lat": -22.7389, "lng": -47.3331, "v": 8}, {"b": "ANHANGUERA", "lat": -23.4083, "lng": -46.7694, "v": 8}, {"b": "TREMEMBÉ", "lat": -23.4658, "lng": -46.6163, "v": 7}, {"b": "SÃO LUCAS", "lat": -23.592, "lng": -46.53, "v": 7}, {"b": "HIGIENÓPOLIS", "lat": -23.54, "lng": -46.6536, "v": 7}, {"b": "ÁGUA RASA", "lat": -23.5608, "lng": -46.5553, "v": 6}, {"b": "PEDREIRA", "lat": -23.6722, "lng": -46.635, "v": 4}, {"b": "CAMPO GRANDE", "lat": -23.6204, "lng": -46.7749, "v": 4}, {"b": "JARDIM ÂNGELA", "lat": -23.69, "lng": -46.77, "v": 4}, {"b": "LAUZANE PAULISTA", "lat": -23.4708, "lng": -46.5892, "v": 3}, {"b": "CACHOEIRINHA", "lat": -23.48, "lng": -46.64, "v": 3}, {"b": "TAUBATÉ", "lat": -23.0264, "lng": -45.5553, "v": 2}, {"b": "IGUATEMI", "lat": -23.5633, "lng": -46.4013, "v": 2}, {"b": "CIDADE KEMEL", "lat": -23.6033, "lng": -46.8033, "v": 2}, {"b": "M'BOI MIRIM", "lat": -23.69, "lng": -46.75, "v": 1}, {"b": "ALTO DE PINHEIROS", "lat": -23.5442, "lng": -46.7181, "v": 1}, {"b": "JAGUARÁ", "lat": -23.5208, "lng": -46.7408, "v": 1}, {"b": "JACAREÍ", "lat": -23.3053, "lng": -45.9658, "v": 1}, {"b": "JAÇANÃ", "lat": -23.4581, "lng": -46.5978, "v": 1}, {"b": "SÃO PAULO", "lat": -23.5505, "lng": -46.6333, "v": 1}];
+let _mapaLeaflet = null;
+let _mapaMarkers = null;
+let _mapaInit = false;
+
+function renderMapa() {
+  const ano   = document.getElementById('map-ano')?.value   || 'ALL';
+  const causa = document.getElementById('map-causa')?.value || 'ALL';
+  const ci    = document.getElementById('map-ci')?.value    || 'ALL';
+  const top   = parseInt(document.getElementById('map-top')?.value || '9999');
+
+  // Filtra DATA pelos filtros selecionados
+  const filtered = DATA.filter(function(r) {
+    if (ano   !== 'ALL' && String(r.A) !== ano)    return false;
+    if (causa !== 'ALL' && r.C !== causa)           return false;
+    if (ci    !== 'ALL' && r.CI !== ci)             return false;
+    return true;
+  });
+
+  // Conta por bairro nos dados filtrados
+  const counts = {};
+  filtered.forEach(function(r) { if (r.B) counts[r.B] = (counts[r.B] || 0) + 1; });
+
+  // Cruza com coordenadas
+  const pts = [];
+  MAP_COORDS.forEach(function(p) {
+    if (counts[p.b]) pts.push({ b: p.b, lat: p.lat, lng: p.lng, v: counts[p.b] });
+  });
+  pts.sort(function(a,b) { return b.v - a.v; });
+  const topPts = pts.slice(0, top);
+  const maxV = topPts[0] ? topPts[0].v : 1;
+  const totalV = topPts.reduce(function(s,p) { return s + p.v; }, 0);
+
+  // Stats
+  var statsEl = document.getElementById('map-stats');
+  if (statsEl) {
+    statsEl.innerHTML =
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;">'
+      +'<div style="font-size:18px;font-weight:800;font-family:JetBrains Mono,monospace;color:var(--accent);">'+filtered.length.toLocaleString('pt-BR')+'</div>'
+      +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Falhas filtradas</div></div>'
+      +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;">'
+      +'<div style="font-size:18px;font-weight:800;font-family:JetBrains Mono,monospace;color:var(--accent4);">'+topPts.length+'</div>'
+      +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Bairros no mapa</div></div>'
+      +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;">'
+      +'<div style="font-size:18px;font-weight:800;font-family:JetBrains Mono,monospace;color:var(--accent2);">'+(topPts[0]?topPts[0].b:'—')+'</div>'
+      +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Maior ofensor ('+maxV+' falhas)</div></div>';
+  }
+
+  // Inicializa mapa Leaflet
+  if (!_mapaInit) {
+    _mapaLeaflet = L.map('mapa-sp', {
+      center: [-23.55, -46.63],
+      zoom: 10,
+      zoomControl: true,
+      attributionControl: true
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap © CARTO',
+      subdomains: 'abcd',
+      maxZoom: 19
+    }).addTo(_mapaLeaflet);
+    _mapaMarkers = L.layerGroup().addTo(_mapaLeaflet);
+    _mapaInit = true;
+  }
+
+  // Remove marcadores antigos
+  _mapaMarkers.clearLayers();
+
+  // Adiciona novos pontos
+  topPts.forEach(function(p) {
+    var ratio = p.v / maxV;
+    var radius = Math.max(6, Math.round(ratio * 40));
+    var color = ratio < 0.2 ? '#00c8ff' : ratio < 0.5 ? '#ffa500' : '#ff4d6d';
+    var opacity = 0.55 + ratio * 0.35;
+
+    var circle = L.circleMarker([p.lat, p.lng], {
+      radius: radius,
+      fillColor: color,
+      fillOpacity: opacity,
+      color: color,
+      weight: 1.5,
+      opacity: 0.9
+    });
+
+    circle.bindPopup(
+      '<div style="font-family:Sora,sans-serif;min-width:160px;">'
+      +'<div style="font-weight:700;font-size:13px;margin-bottom:4px;">'+p.b+'</div>'
+      +'<div style="font-size:12px;color:#888;">Falhas: <b style="color:'+color+';">'+p.v+'</b></div>'
+      +'<div style="font-size:11px;color:#888;">'+(p.v/totalV*100).toFixed(1)+'% do total mapeado</div>'
+      +'<div style="font-size:11px;color:#888;">Rank: #'+(topPts.indexOf(p)+1)+'</div>'
+      +'</div>'
+    );
+    _mapaMarkers.addLayer(circle);
+  });
+
+  // Invalida tamanho para forçar render correto
+  setTimeout(function() { if(_mapaLeaflet) _mapaLeaflet.invalidateSize(); }, 100);
+}
+
+function initMapa() {
+  // Popula select de ano
+  var sel = document.getElementById('map-ano');
+  if (sel && ANOS) {
+    ANOS.forEach(function(a) {
+      var o = document.createElement('option');
+      o.value = a; o.textContent = a;
+      sel.appendChild(o);
+    });
+  }
+  renderMapa();
 }
 
 window.addEventListener('DOMContentLoaded',()=>setTimeout(init,300));
