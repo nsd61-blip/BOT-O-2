@@ -132,6 +132,37 @@ tbody td{padding:7px 10px;color:var(--text);}
 @media(max-width:960px){.grid-2,.grid-3,.grid-12,.grid-21{grid-template-columns:1fr;}.main{padding:12px;}.header{padding:0 12px;}.nav{padding:0 8px;}}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+.mapa-popup .leaflet-popup-content-wrapper {
+  background: #0d1220 !important;
+  border: 1px solid rgba(0,200,255,.25) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,.6) !important;
+  color: #e8eaf0 !important;
+}
+.mapa-popup .leaflet-popup-tip { background: #0d1220 !important; }
+.mapa-popup .leaflet-popup-close-button { color: #6b7280 !important; font-size:16px !important; }
+.mapa-tooltip {
+  background: rgba(13,18,32,.97) !important;
+  border: 1px solid rgba(0,200,255,.4) !important;
+  border-radius: 6px !important;
+  color: #ffffff !important;
+  font-family: 'Sora', sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  padding: 5px 10px !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,.7) !important;
+  white-space: nowrap !important;
+  letter-spacing: .3px !important;
+}
+.mapa-tooltip::before { display:none !important; }
+.mapa-tooltip-perm {
+  font-size: 11px !important;
+  padding: 3px 7px !important;
+  background: rgba(8,12,20,.92) !important;
+  border-color: rgba(0,200,255,.3) !important;
+}
+</style>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
@@ -579,9 +610,18 @@ tbody td{padding:7px 10px;color:var(--text);}
   <div class="filter-bar" style="flex-wrap:wrap;gap:10px;">
     <div class="filter-group">
       <div class="filter-label">Ano</div>
-      <select id="map-ano" onchange="renderMapa()">
+      <select id="map-ano" onchange="onMapAnoChange()">
         <option value="ALL">Todos os Anos</option>
       </select>
+    </div>
+    <div class="vsep"></div>
+    <div class="filter-group">
+      <div class="filter-label">Mês de Referência (um ou mais)</div>
+      <div class="month-chips" id="map-mes-chips"></div>
+      <div class="chip-actions">
+        <button class="chip-btn" onclick="selAllMeses('map')">Todos</button>
+        <button class="chip-btn" onclick="selLastMes('map')">Último Mês</button>
+      </div>
     </div>
     <div class="vsep"></div>
     <div class="filter-group">
@@ -603,32 +643,22 @@ tbody td{padding:7px 10px;color:var(--text);}
     </div>
     <div class="vsep"></div>
     <div class="filter-group">
-      <div class="filter-label">Top bairros</div>
-      <select id="map-top" onchange="renderMapa()">
-        <option value="50">Top 50</option>
-        <option value="100">Top 100</option>
-        <option value="9999" selected>Todos</option>
-      </select>
+      <div class="filter-label">Labels visíveis</div>
+      <div style="display:flex;gap:6px;">
+        <button id="map-lbl-20"  class="causa-btn" onclick="setMapLabel(20)">Top 20</button>
+        <button id="map-lbl-30"  class="causa-btn causa-active" onclick="setMapLabel(30)">Top 30</button>
+        <button id="map-lbl-all" class="causa-btn" onclick="setMapLabel(0)">🔴🟠 Auto</button>
+      </div>
     </div>
   </div>
 
-  <!-- Stats row -->
-  <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;" id="map-stats"></div>
-
-  <!-- Legenda -->
-  <div style="display:flex;align-items:center;gap:16px;margin-top:12px;flex-wrap:wrap;font-size:11px;color:var(--muted);">
-    <span style="font-weight:600;text-transform:uppercase;letter-spacing:.5px;">Intensidade:</span>
-    <div style="display:flex;align-items:center;gap:5px;"><div style="width:12px;height:12px;border-radius:50%;background:#00c8ff;opacity:.7;"></div>Baixa (1–50)</div>
-    <div style="display:flex;align-items:center;gap:5px;"><div style="width:14px;height:14px;border-radius:50%;background:#ffa500;opacity:.85;"></div>Média (51–150)</div>
-    <div style="display:flex;align-items:center;gap:5px;"><div style="width:18px;height:18px;border-radius:50%;background:#ff4d6d;opacity:.9;"></div>Alta (151+)</div>
-    <span style="margin-left:8px;color:var(--muted);">Tamanho do círculo proporcional ao volume de falhas · Clique para detalhes</span>
-  </div>
 
   <!-- Mapa -->
   <div class="card" style="margin-top:12px;padding:0;overflow:hidden;">
-    <div id="mapa-sp" style="height:580px;width:100%;border-radius:12px;"></div>
+    <div id="mapa-sp" style="height:640px;width:100%;border-radius:12px;"></div>
   </div>
 </div>
+
 
 </main>
 
@@ -638,9 +668,10 @@ const MO = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOST
 const MS = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
 
 let DATA = [], ANOS = [], charts = {};
-const selMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[] };
+const selMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[], map:[] };
 let ovCausa = 'ALL';
 let evPeriodo = 1;
+let mapLabelCount = 30;
 const availMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[] };
 
 function dc(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
@@ -1355,15 +1386,15 @@ function renderPareto(){
       },
       scales:{
         x:{grid:{color:'rgba(255,255,255,0.04)'},
-           ticks:{color:'#6b7280',font:{size:9,family:'JetBrains Mono'},maxRotation:45,minRotation:35},
+           ticks:{color:'#ffffff',font:{size:10,family:'Sora',weight:'600'},maxRotation:45,minRotation:35},
            border:{color:'rgba(255,255,255,0.07)'}},
         y:{position:'left',grid:{color:'rgba(255,255,255,0.05)'},
-           ticks:{color:'#6b7280',font:{size:10}},
-           title:{display:true,text:'Quantidade de Falhas',color:'#6b7280',font:{size:11}},
+           ticks:{color:'#e8eaf0',font:{size:11}},
+           title:{display:true,text:'Quantidade de Falhas',color:'#9ca3af',font:{size:11}},
            border:{color:'rgba(255,255,255,0.07)'}},
         y2:{position:'right',min:0,max:100,grid:{drawOnChartArea:false},
-            ticks:{color:'rgba(255,77,109,0.8)',font:{size:10},callback:v=>v+'%'},
-            title:{display:true,text:'% Acumulada',color:'rgba(255,77,109,0.8)',font:{size:11}},
+            ticks:{color:'rgba(255,77,109,0.9)',font:{size:10},callback:v=>v+'%'},
+            title:{display:true,text:'% Acumulada',color:'rgba(255,77,109,0.9)',font:{size:11}},
             border:{color:'rgba(255,255,255,0.07)'}}
       }
     }
@@ -1532,48 +1563,50 @@ let _mapaLeaflet = null;
 let _mapaMarkers = null;
 let _mapaInit = false;
 
-function renderMapa() {
-  const ano   = document.getElementById('map-ano')?.value   || 'ALL';
-  const causa = document.getElementById('map-causa')?.value || 'ALL';
-  const ci    = document.getElementById('map-ci')?.value    || 'ALL';
-  const top   = parseInt(document.getElementById('map-top')?.value || '9999');
+function setMapLabel(n) {
+  mapLabelCount = n;
+  ['20','30','all'].forEach(function(k) {
+    var btn = document.getElementById('map-lbl-'+k);
+    if (btn) btn.classList.toggle('causa-active', (k==='all'&&n===0)||(k==='20'&&n===20)||(k==='30'&&n===30));
+  });
+  renderMapa();
+}
 
-  // Filtra DATA pelos filtros selecionados
-  const filtered = DATA.filter(function(r) {
-    if (ano   !== 'ALL' && String(r.A) !== ano)    return false;
-    if (causa !== 'ALL' && r.C !== causa)           return false;
-    if (ci    !== 'ALL' && r.CI !== ci)             return false;
+function onMapAnoChange() {
+  var ano = document.getElementById('map-ano')?.value || 'ALL';
+  refreshChips('map', ano, false);
+  renderMapa();
+}
+
+function renderMapa() {
+  var ano   = document.getElementById('map-ano')?.value   || 'ALL';
+  var causa = document.getElementById('map-causa')?.value || 'ALL';
+  var ci    = document.getElementById('map-ci')?.value    || 'ALL';
+  var meses = selMeses.map && selMeses.map.length ? selMeses.map : (availMeses.map || MO);
+
+  // Filtra DATA
+  var filtered = DATA.filter(function(r) {
+    if (ano   !== 'ALL' && String(r.A) !== ano) return false;
+    if (meses !== MO && meses.indexOf(r.M) < 0) return false;
+    if (causa !== 'ALL' && r.C !== causa)        return false;
+    if (ci    !== 'ALL' && r.CI !== ci)          return false;
     return true;
   });
 
-  // Conta por bairro nos dados filtrados
-  const counts = {};
-  filtered.forEach(function(r) { if (r.B) counts[r.B] = (counts[r.B] || 0) + 1; });
+  // Conta por bairro
+  var counts = {};
+  filtered.forEach(function(r) { if (r.B) counts[r.B] = (counts[r.B]||0)+1; });
 
   // Cruza com coordenadas
-  const pts = [];
+  var pts = [];
   MAP_COORDS.forEach(function(p) {
-    if (counts[p.b]) pts.push({ b: p.b, lat: p.lat, lng: p.lng, v: counts[p.b] });
+    if (counts[p.b]) pts.push({ b:p.b, lat:p.lat, lng:p.lng, v:counts[p.b] });
   });
   pts.sort(function(a,b) { return b.v - a.v; });
-  const topPts = pts.slice(0, top);
-  const maxV = topPts[0] ? topPts[0].v : 1;
-  const totalV = topPts.reduce(function(s,p) { return s + p.v; }, 0);
+  var maxV   = pts[0] ? pts[0].v : 1;
+  var totalV = pts.reduce(function(s,p){ return s+p.v; }, 0);
 
-  // Stats
-  var statsEl = document.getElementById('map-stats');
-  if (statsEl) {
-    statsEl.innerHTML =
-      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;">'
-      +'<div style="font-size:18px;font-weight:800;font-family:JetBrains Mono,monospace;color:var(--accent);">'+filtered.length.toLocaleString('pt-BR')+'</div>'
-      +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Falhas filtradas</div></div>'
-      +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;">'
-      +'<div style="font-size:18px;font-weight:800;font-family:JetBrains Mono,monospace;color:var(--accent4);">'+topPts.length+'</div>'
-      +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Bairros no mapa</div></div>'
-      +'<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;">'
-      +'<div style="font-size:18px;font-weight:800;font-family:JetBrains Mono,monospace;color:var(--accent2);">'+(topPts[0]?topPts[0].b:'—')+'</div>'
-      +'<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Maior ofensor ('+maxV+' falhas)</div></div>';
-  }
+
 
   // Inicializa mapa Leaflet
   if (!_mapaInit) {
@@ -1592,37 +1625,55 @@ function renderMapa() {
     _mapaInit = true;
   }
 
-  // Remove marcadores antigos
   _mapaMarkers.clearLayers();
 
-  // Adiciona novos pontos
-  topPts.forEach(function(p) {
-    var ratio = p.v / maxV;
-    var radius = Math.max(6, Math.round(ratio * 40));
-    var color = ratio < 0.2 ? '#00c8ff' : ratio < 0.5 ? '#ffa500' : '#ff4d6d';
+  pts.forEach(function(p, idx) {
+    var ratio   = p.v / maxV;
+    var radius  = Math.max(6, Math.round(ratio * 42));
+    var color   = ratio < 0.2 ? '#00c8ff' : ratio < 0.5 ? '#ffa500' : '#ff4d6d';
     var opacity = 0.55 + ratio * 0.35;
+    var rank    = idx + 1;
 
     var circle = L.circleMarker([p.lat, p.lng], {
       radius: radius,
       fillColor: color,
       fillOpacity: opacity,
-      color: color,
-      weight: 1.5,
-      opacity: 0.9
+      color: '#fff',
+      weight: ratio >= 0.5 ? 1.5 : (ratio >= 0.2 ? 1 : 0.5),
+      opacity: 0.7
     });
 
     circle.bindPopup(
-      '<div style="font-family:Sora,sans-serif;min-width:160px;">'
-      +'<div style="font-weight:700;font-size:13px;margin-bottom:4px;">'+p.b+'</div>'
-      +'<div style="font-size:12px;color:#888;">Falhas: <b style="color:'+color+';">'+p.v+'</b></div>'
-      +'<div style="font-size:11px;color:#888;">'+(p.v/totalV*100).toFixed(1)+'% do total mapeado</div>'
-      +'<div style="font-size:11px;color:#888;">Rank: #'+(topPts.indexOf(p)+1)+'</div>'
+      '<div style="font-family:Sora,sans-serif;min-width:180px;padding:4px 2px;">'
+      +'<div style="font-weight:800;font-size:14px;color:#ffffff;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,.15);padding-bottom:6px;">'+p.b+'</div>'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
+      +'<span style="font-size:12px;color:#aaa;">Falhas</span>'
+      +'<b style="font-size:13px;color:'+color+';">'+p.v+'</b></div>'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:3px;">'
+      +'<span style="font-size:12px;color:#aaa;">% do total</span>'
+      +'<span style="font-size:12px;color:#ccc;">'+(p.v/totalV*100).toFixed(1)+'%</span></div>'
+      +'<div style="display:flex;justify-content:space-between;">'
+      +'<span style="font-size:12px;color:#aaa;">Ranking</span>'
+      +'<span style="font-size:12px;color:#ccc;">#'+rank+' de '+pts.length+'</span></div>'
       +'</div>'
-    );
+    , { className: 'mapa-popup' });
+
+    // Label: sempre visível para top N, ou se bola é vermelha/laranja (mapLabelCount===0)
+    var showPerm = mapLabelCount === 0
+      ? (color === '#ff4d6d' || color === '#ffa500')
+      : (rank <= mapLabelCount);
+
+    circle.bindTooltip(p.b, {
+      permanent: showPerm,
+      direction: 'top',
+      offset: [0, -(radius + 2)],
+      className: 'mapa-tooltip' + (showPerm ? ' mapa-tooltip-perm' : ''),
+      opacity: 1
+    });
+
     _mapaMarkers.addLayer(circle);
   });
 
-  // Invalida tamanho para forçar render correto
   setTimeout(function() { if(_mapaLeaflet) _mapaLeaflet.invalidateSize(); }, 100);
 }
 
@@ -1635,7 +1686,11 @@ function initMapa() {
       o.value = a; o.textContent = a;
       sel.appendChild(o);
     });
+    sel.value = ANOS[ANOS.length-1];
   }
+  // Popula chips de mês
+  refreshChips('map', ANOS[ANOS.length-1], false);
+  selLastMes('map');
   renderMapa();
 }
 
