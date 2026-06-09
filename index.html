@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FibraGIS · Gestão Inteligente de Falhas</title>
+<title>Indicadores de Preventiva</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -168,7 +168,7 @@ tbody td{padding:7px 10px;color:var(--text);}
 <body>
 
 <div id="loading">
-  <div class="loading-logo">⚡ FibraGIS</div>
+  <div class="loading-logo">⚡ Indicadores de Preventiva</div>
   <div class="loading-bar"><div class="loading-fill"></div></div>
   <div class="loading-text" id="loading-txt">Carregando dados...</div>
 </div>
@@ -177,7 +177,7 @@ tbody td{padding:7px 10px;color:var(--text);}
   <div class="logo">
     <div class="logo-icon">⚡</div>
     <div>
-      <div class="logo-text">FibraGIS · Gestão Inteligente de Falhas</div>
+      <div class="logo-text">Indicadores de Preventiva</div>
       <div class="logo-sub">Preventiva FMO · Monitoramento Operacional</div>
     </div>
   </div>
@@ -672,7 +672,7 @@ const selMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[], map:[] };
 let ovCausa = 'ALL';
 let evPeriodo = 1;
 let mapLabelCount = 30;
-const availMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[] };
+const availMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[], map:[] };
 
 function dc(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
 function nc(id, cfg){ dc(id); const c = document.getElementById(id); if(!c) return; charts[id] = new Chart(c, cfg); }
@@ -747,6 +747,7 @@ function triggerRender(p){
   if(p==='geo') renderGeo();
   if(p==='ev')  renderEvolucao();
   if(p==='din') renderDinamica();
+  if(p==='map') renderMapa();
 }
 
 function onAnoChange(prefix){
@@ -1481,6 +1482,16 @@ async function liveRefresh(){
       hmSel.value=cur||lastAno;
     }
 
+    // Rebuild map-ano select
+    var mapSel=document.getElementById('map-ano');
+    if(mapSel){
+      var curMap=mapSel.value;
+      mapSel.innerHTML='<option value="ALL">Todos os Anos</option>';
+      ANOS.forEach(function(a){var o=document.createElement('option');o.value=a;o.textContent=a;mapSel.appendChild(o);});
+      mapSel.value=curMap||ANOS[ANOS.length-1];
+      refreshChips('map',mapSel.value,false);
+    }
+
     document.getElementById('last-update').textContent=
       '🔄 '+new Date().toLocaleString('pt-BR')+' · '+DATA.length.toLocaleString('pt-BR')+' registros · Drive ao vivo';
 
@@ -1516,6 +1527,10 @@ function saveAndReload(){
       din_ano:document.getElementById('din-ano')?.value,
       din_ci:document.getElementById('din-ci')?.value,
       din_meses:[...selMeses.din],
+      map_ano:document.getElementById('map-ano')?.value,
+      map_causa:document.getElementById('map-causa')?.value,
+      map_ci:document.getElementById('map-ci')?.value,
+      map_meses:[...selMeses.map],
       activeTab:document.querySelector('.nav-tab.active')?.dataset?.tab||'overview'
     };
     sessionStorage.setItem('fibragis_state', JSON.stringify(state));
@@ -1537,17 +1552,20 @@ function restoreState(){
     setVal('hm-ano',s.hm_ano); setVal('hm-causa',s.hm_causa); setVal('hm-ci',s.hm_ci);
     setVal('ev-ano',s.ev_ano);
     setVal('din-ano',s.din_ano); setVal('din-ci',s.din_ci);
+    setVal('map-ano',s.map_ano); setVal('map-causa',s.map_causa); setVal('map-ci',s.map_ci);
 
     if(s.ov_meses?.length)  selMeses.ov=[...s.ov_meses];
     if(s.ca_meses?.length)  selMeses.ca=[...s.ca_meses];
     if(s.geo_meses?.length) selMeses.geo=[...s.geo_meses];
     if(s.din_meses?.length) selMeses.din=[...s.din_meses];
+    if(s.map_meses?.length) selMeses.map=[...s.map_meses];
 
     ['ov','ca','geo','din'].forEach(p=>{
       const ano=document.getElementById(p+'-ano')?.value||'ALL';
       refreshChips(p,ano,false);
     });
     refreshChips('ev',document.getElementById('ev-ano')?.value||'ALL',true);
+    refreshChips('map',document.getElementById('map-ano')?.value||'ALL',false);
 
     if(s.activeTab && s.activeTab!=='overview'){
       const tab=document.querySelector(`.nav-tab[data-tab="${s.activeTab}"]`);
@@ -1678,9 +1696,9 @@ function renderMapa() {
 }
 
 function initMapa() {
-  // Popula select de ano
+  // Popula select de ano somente se ainda vazio
   var sel = document.getElementById('map-ano');
-  if (sel && ANOS) {
+  if (sel && ANOS && sel.options.length <= 1) {
     ANOS.forEach(function(a) {
       var o = document.createElement('option');
       o.value = a; o.textContent = a;
@@ -1689,7 +1707,8 @@ function initMapa() {
     sel.value = ANOS[ANOS.length-1];
   }
   // Popula chips de mês
-  refreshChips('map', ANOS[ANOS.length-1], false);
+  var ano = sel ? sel.value : ANOS[ANOS.length-1];
+  refreshChips('map', ano, false);
   selLastMes('map');
   renderMapa();
 }
@@ -1698,3 +1717,4 @@ window.addEventListener('DOMContentLoaded',()=>setTimeout(init,300));
 </script>
 </body>
 </html>
+  
