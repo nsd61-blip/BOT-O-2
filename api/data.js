@@ -1,25 +1,25 @@
 const https = require('https');
 
 const FILE_ID = '1fE_-S3cEAzLS0SOA4rnEWGzE4y7bXOUo';
-const EXPORT_URL = `https://docs.google.com/spreadsheets/d/${FILE_ID}/export?format=xlsx`;
+// Exporta só a aba BASE como CSV — muito mais rápido que xlsx (35MB vs ~500KB)
+const CSV_URL = `https://docs.google.com/spreadsheets/d/${FILE_ID}/gviz/tq?tqx=out:csv&sheet=BASE`;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Cache-Control', 'no-store');
 
   try {
-    const buffer = await downloadFile(EXPORT_URL);
-    const XLSX = require('xlsx');
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheet = workbook.Sheets['BASE'];
-    if (!sheet) throw new Error('Aba BASE não encontrada');
+    const csv = await downloadText(CSV_URL);
+    const rows = parseCSV(csv);
 
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (rows.length < 2) throw new Error('Dados insuficientes no CSV');
+
     const headers = rows[0];
 
     const col = (names) => {
       for (const n of names) {
-        const i = headers.indexOf(n);
+        const i = headers.findIndex(h => h.trim() === n.trim());
         if (i >= 0) return i;
       }
       return -1;
@@ -37,29 +37,30 @@ module.exports = async (req, res) => {
     const records = [];
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
-      if (!String(r[iT] || '').startsWith('TSK')) continue;
+      if (!r || r.length < 3) continue;
+      const tsk = (r[iT] || '').trim();
+      if (!tsk.startsWith('TSK')) continue;
       const ano = Number(r[iA]);
       if (!ano || isNaN(ano)) continue;
-      const mes = String(r[iM] || '').trim().toUpperCase();
+      const mes = (r[iM] || '').trim().toUpperCase();
       if (!mes) continue;
 
-      let end = String(r[iE] || '').trim().toUpperCase();
+      let end = (r[iE] || '').trim().toUpperCase();
       if (/^TSK\d/.test(end) || /^SP[A-Z]+_/.test(end)) end = '';
       end = end.replace(/,?\s*\d+[\s\S]*$/, '').trim().replace(/^[-.,]+|[-.,]+$/g, '');
       if (end.length <= 4) end = '';
 
       records.push({
-        M: mes, A: ano,
-        V: String(r[iV]  || '').trim().toUpperCase(),
-        C: String(r[iC]  || '').trim().toUpperCase(),
-        CI:String(r[iCI] || '').trim().toUpperCase(),
-        B: String(r[iB]  || '').trim().toUpperCase(),
+        M: mes,
+        A: ano,
+        V: (r[iV]  || '').trim().toUpperCase(),
+        C: (r[iC]  || '').trim().toUpperCase(),
+        CI:(r[iCI] || '').trim().toUpperCase(),
+        B: (r[iB]  || '').trim().toUpperCase(),
         E: end
       });
     }
 
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({ ok: true, total: records.length, data: records });
 
   } catch (err) {
@@ -67,21 +68,50 @@ module.exports = async (req, res) => {
   }
 };
 
-function downloadFile(url) {
+// Download texto (CSV)
+function downloadText(url) {
   return new Promise((resolve, reject) => {
     const follow = (u, redirects = 0) => {
       if (redirects > 5) return reject(new Error('Too many redirects'));
-      https.get(u, (res) => {
+      const mod = u.startsWith('https') ? https : require('http');
+      mod.get(u, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           return follow(res.headers.location, redirects + 1);
         }
-        if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
-        const chunks = [];
-        res.on('data', c => chunks.push(c));
-        res.on('end', () => resolve(Buffer.concat(chunks)));
+        if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
+        res.setEncoding('utf8');
+        let data = '';
+        res.on('data', c => { data += c; });
+        res.on('end', () => resolve(data));
         res.on('error', reject);
       }).on('error', reject);
     };
     follow(url);
   });
+}
+
+// Parser CSV simples (lida com aspas e vírgulas dentro de campos)
+function parseCSV(text) {
+  const rows = [];
+  const lines = text.split('\n');
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const row = [];
+    let field = '';
+    let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuote && line[i+1] === '"') { field += '"'; i++; }
+        else inQuote = !inQuote;
+      } else if (ch === ',' && !inQuote) {
+        row.push(field); field = '';
+      } else {
+        field += ch;
+      }
+    }
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
 }
