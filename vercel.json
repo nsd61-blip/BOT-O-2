@@ -6,9 +6,7 @@
       "maxDuration": 30
     }
   },
-  "routes": [
-    { "src": "/api/data", "dest": "/api/data.js" },
-    { "src": "/", "dest": "/index.html" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" }
   ]
 }
