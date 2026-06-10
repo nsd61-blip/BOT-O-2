@@ -1426,30 +1426,18 @@ async function liveRefresh(){
   const btn=document.querySelector('.refresh-btn');
   const orig=btn.textContent;
 
-  // Save current state
-  try{
-    const state={
-      ov_ano:document.getElementById('ov-ano')?.value,
-      ov_ci:document.getElementById('ov-ci')?.value,
-      ov_meses:[...selMeses.ov],
-      ca_ano:document.getElementById('ca-ano')?.value,
-      ca_meses:[...selMeses.ca],
-      geo_ano:document.getElementById('geo-ano')?.value,
-      geo_ci:document.getElementById('geo-ci')?.value,
-      geo_meses:[...selMeses.geo],
-      hm_ano:document.getElementById('hm-ano')?.value,
-      hm_causa:document.getElementById('hm-causa')?.value,
-      hm_ci:document.getElementById('hm-ci')?.value,
-      ev_ano:document.getElementById('ev-ano')?.value,
-      din_ano:document.getElementById('din-ano')?.value,
-      din_ci:document.getElementById('din-ci')?.value,
-      din_meses:[...selMeses.din],
-      activeTab:document.querySelector('.nav-tab.active')?.dataset?.tab||'overview'
-    };
-    sessionStorage.setItem('fibragis_state',JSON.stringify(state));
-  }catch(e){}
+  // Salva aba ativa e filtros atuais
+  const activeTab=document.querySelector('.nav-tab.active')?.dataset?.tab||'overview';
+  const savedAnos={};
+  ['ov','ca','geo','ev','din','hm'].forEach(p=>{
+    const el=document.getElementById(p+'-ano');
+    if(el) savedAnos[p]=el.value;
+  });
+  const savedCI={
+    ov: document.getElementById('ov-ci')?.value||'ALL',
+    geo: document.getElementById('geo-ci')?.value||'ALL',
+  };
 
-  // Try live API
   btn.textContent='⏳ Buscando...';
   btn.disabled=true;
 
@@ -1462,35 +1450,54 @@ async function liveRefresh(){
     DATA=json.data;
     paretoRendered=false;
 
-    // Rebuild selects with new data
+    // Recalcula anos disponíveis
     ANOS=[...new Set(DATA.map(r=>r.A))].sort();
     const lastAno=ANOS[ANOS.length-1];
-    ['ov','ca','geo','ev','din'].forEach(p=>{
-      const sel=document.getElementById(p+'-ano');
+
+    // Rebuild todos os selects de ano
+    const rebuiltAno=(id, hasAll)=>{
+      const sel=document.getElementById(id);
       if(!sel) return;
-      const cur=sel.value;
+      const prev=savedAnos[id]||lastAno;
       sel.innerHTML='';
-      if(p!=='ev'){const o=document.createElement('option');o.value='ALL';o.textContent='Todos os Anos';sel.appendChild(o);}
+      if(hasAll){const o=document.createElement('option');o.value='ALL';o.textContent='Todos os Anos';sel.appendChild(o);}
       ANOS.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;sel.appendChild(o);});
-      sel.value=cur||lastAno;
-    });
+      sel.value=ANOS.includes(Number(prev))?prev:(hasAll?'ALL':lastAno);
+    };
+    rebuiltAno('ov-ano', true);
+    rebuiltAno('ca-ano', true);
+    rebuiltAno('geo-ano', true);
+    rebuiltAno('din-ano', true);
+    rebuiltAno('ev-ano', false);
+
     const hmSel=document.getElementById('hm-ano');
     if(hmSel){
-      const cur=hmSel.value;
       hmSel.innerHTML='<option value="ALL">Todos</option>';
       ANOS.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;hmSel.appendChild(o);});
-      hmSel.value=cur||lastAno;
+      hmSel.value=savedAnos.hm||'ALL';
     }
 
-    // Rebuild map-ano select
-    var mapSel=document.getElementById('map-ano');
+    const mapSel=document.getElementById('map-ano');
     if(mapSel){
-      var curMap=mapSel.value;
       mapSel.innerHTML='<option value="ALL">Todos os Anos</option>';
-      ANOS.forEach(function(a){var o=document.createElement('option');o.value=a;o.textContent=a;mapSel.appendChild(o);});
-      mapSel.value=curMap||ANOS[ANOS.length-1];
-      refreshChips('map',mapSel.value,false);
+      ANOS.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;mapSel.appendChild(o);});
+      mapSel.value=lastAno;
     }
+
+    // Restaura CI
+    const ovCI=document.getElementById('ov-ci');
+    if(ovCI) ovCI.value=savedCI.ov;
+    const geoCI=document.getElementById('geo-ci');
+    if(geoCI) geoCI.value=savedCI.geo;
+
+    // Reconstrói todos os chips de mês (selecionando último mês)
+    ['ov','ca','geo','din'].forEach(p=>{
+      const ano=document.getElementById(p+'-ano')?.value||lastAno;
+      refreshChips(p,ano,false);
+      selLastMes(p);
+    });
+    refreshChips('ev', document.getElementById('ev-ano')?.value||lastAno, true);
+    if(mapSel) refreshChips('map', lastAno, false);
 
     document.getElementById('last-update').textContent=
       '🔄 '+new Date().toLocaleString('pt-BR')+' · '+DATA.length.toLocaleString('pt-BR')+' registros · Drive ao vivo';
@@ -1498,7 +1505,11 @@ async function liveRefresh(){
     btn.textContent='✅ Atualizado!';
     btn.style.color='var(--accent3)';
     setTimeout(()=>{btn.textContent=orig;btn.style.color='';btn.disabled=false;},2500);
-    restoreState();
+
+    // Renderiza aba ativa
+    const tabEl=document.querySelector('.nav-tab[data-tab="'+activeTab+'"]');
+    if(tabEl) switchTab(tabEl);
+    else renderOverview();
 
   }catch(e){
     btn.textContent='❌ '+e.message.slice(0,25);
