@@ -1,7 +1,6 @@
 const https = require('https');
 
-const FILE_ID = '1fE_-S3cEAzLS0SOA4rnEWGzE4y7bXOUo';
-// Exporta só a aba BASE como CSV — muito mais rápido que xlsx (35MB vs ~500KB)
+const FILE_ID = '12oi1T4m9lQxAzDwQKPECjPqtMmzviiky';
 const CSV_URL = `https://docs.google.com/spreadsheets/d/${FILE_ID}/gviz/tq?tqx=out:csv&sheet=BASE`;
 
 module.exports = async (req, res) => {
@@ -12,11 +11,9 @@ module.exports = async (req, res) => {
   try {
     const csv = await downloadText(CSV_URL);
     const rows = parseCSV(csv);
-
-    if (rows.length < 2) throw new Error('Dados insuficientes no CSV');
+    if (rows.length < 2) throw new Error('Dados insuficientes');
 
     const headers = rows[0];
-
     const col = (names) => {
       for (const n of names) {
         const i = headers.findIndex(h => h.trim() === n.trim());
@@ -51,8 +48,7 @@ module.exports = async (req, res) => {
       if (end.length <= 4) end = '';
 
       records.push({
-        M: mes,
-        A: ano,
+        M: mes, A: ano,
         V: (r[iV]  || '').trim().toUpperCase(),
         C: (r[iC]  || '').trim().toUpperCase(),
         CI:(r[iCI] || '').trim().toUpperCase(),
@@ -68,7 +64,6 @@ module.exports = async (req, res) => {
   }
 };
 
-// Download texto (CSV)
 function downloadText(url) {
   return new Promise((resolve, reject) => {
     const follow = (u, redirects = 0) => {
@@ -90,15 +85,13 @@ function downloadText(url) {
   });
 }
 
-// Parser CSV simples (lida com aspas e vírgulas dentro de campos)
 function parseCSV(text) {
   const rows = [];
   const lines = text.split('\n');
   for (const line of lines) {
     if (!line.trim()) continue;
     const row = [];
-    let field = '';
-    let inQuote = false;
+    let field = '', inQuote = false;
     for (let i = 0; i < line.length; i++) {
       const ch = line[i];
       if (ch === '"') {
@@ -106,9 +99,7 @@ function parseCSV(text) {
         else inQuote = !inQuote;
       } else if (ch === ',' && !inQuote) {
         row.push(field); field = '';
-      } else {
-        field += ch;
-      }
+      } else { field += ch; }
     }
     row.push(field);
     rows.push(row);
