@@ -131,7 +131,7 @@ tbody td{padding:7px 10px;color:var(--text);}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 @media(max-width:960px){.grid-2,.grid-3,.grid-12,.grid-21{grid-template-columns:1fr;}.main{padding:12px;}.header{padding:0 12px;}.nav{padding:0 8px;}}
 </style>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <style>
 .mapa-popup .leaflet-popup-content-wrapper {
   background: #0d1220 !important;
@@ -163,7 +163,7 @@ tbody td{padding:7px 10px;color:var(--text);}
   border-color: rgba(0,200,255,.3) !important;
 }
 </style>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 </head>
 <body>
 
@@ -510,6 +510,18 @@ tbody td{padding:7px 10px;color:var(--text);}
         <option value="INTERIOR">Interior</option>
       </select>
     </div>
+    <div class="vsep"></div>
+    <div class="filter-group">
+      <div class="filter-label">Mín. Falhas por Endereço</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button id="din-min-3"  class="causa-btn causa-active" onclick="setDinMin(3)">≥ 3</button>
+        <button id="din-min-5"  class="causa-btn" onclick="setDinMin(5)">≥ 5</button>
+        <button id="din-min-8"  class="causa-btn" onclick="setDinMin(8)">≥ 8</button>
+        <button id="din-min-10" class="causa-btn" onclick="setDinMin(10)">≥ 10</button>
+        <button id="din-min-15" class="causa-btn" onclick="setDinMin(15)">≥ 15</button>
+        <button id="din-min-20" class="causa-btn" onclick="setDinMin(20)">≥ 20</button>
+      </div>
+    </div>
   </div>
 
   <div class="grid-2 mb16">
@@ -523,7 +535,7 @@ tbody td{padding:7px 10px;color:var(--text);}
     </div>
     <!-- TOP 47 ENDEREÇOS -->
     <div class="card" style="display:flex;flex-direction:column;">
-      <div class="card-title"><span class="ct-dot red"></span>🔥 Endereços Mais Ofensores (≥ 3 falhas)</div>
+      <div class="card-title"><span class="ct-dot red"></span><span id="din-end-title">🔥 Endereços Mais Ofensores (≥ 3 falhas)</span></div>
       <div id="din-enderecos-table"></div>
     </div>
   </div>
@@ -538,22 +550,61 @@ tbody td{padding:7px 10px;color:var(--text);}
 
 <!-- ═══ PARETO ═══ -->
 <div id="tab-pareto" class="tab-panel">
-  <div style="margin-bottom:16px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+
+  <!-- Filtros linha 1: Ano + Causa + Região -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <div class="filter-label">Ano</div>
+      <select id="par-ano" onchange="onParAnoChange()">
+        <option value="ALL">Todos os Anos</option>
+      </select>
+    </div>
+    <div class="vsep"></div>
+    <div class="filter-group">
+      <div class="filter-label">Mês de Referência (um ou mais)</div>
+      <div class="month-chips" id="par-mes-chips"></div>
+      <div class="chip-actions">
+        <button class="chip-btn" onclick="selAllMeses('par')">Todos</button>
+        <button class="chip-btn" onclick="selLastMes('par')">Último Mês</button>
+      </div>
+    </div>
+    <div class="vsep"></div>
+    <div class="filter-group">
+      <div class="filter-label">Causa</div>
+      <select id="par-causa" onchange="renderPareto()">
+        <option value="ALL">Fibra + Cabo</option>
+        <option value="FIBRA">Fibra</option>
+        <option value="CABO">Cabo</option>
+      </select>
+    </div>
+    <div class="vsep"></div>
+    <div class="filter-group">
+      <div class="filter-label">Região</div>
+      <select id="par-ci" onchange="renderPareto()">
+        <option value="ALL">Capital + Interior</option>
+        <option value="CAPITAL">Capital</option>
+        <option value="INTERIOR">Interior</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Cabeçalho dinâmico -->
+  <div style="margin:14px 0 12px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
       <div style="font-size:15px;font-weight:700;">📊 Diagrama de Pareto — Top 30 Bairros / Cidades Ofensores</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:4px;">Jan/2025 – Abr/2026 · 4.733 falhas no Top 30 · Acumulado até 100%</div>
+      <div id="par-subtitle" style="font-size:12px;color:var(--muted);margin-top:4px;">Calculando...</div>
     </div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;">
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;">
-        <div style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--accent);">4.733</div>
-        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Total falhas</div>
+        <div id="par-stat-total" style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--accent);">—</div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Total Top 30</div>
       </div>
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;">
-        <div style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--accent4);">100,0%</div>
-        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Top 30 representa</div>
+        <div id="par-stat-pct" style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--accent4);">—</div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">% do período</div>
       </div>
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 16px;">
-        <div style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--accent2);">389</div>
+        <div id="par-stat-top1" style="font-size:20px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--accent2);">—</div>
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">Maior ofensor</div>
       </div>
     </div>
@@ -668,11 +719,13 @@ const MO = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOST
 const MS = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
 
 let DATA = [], ANOS = [], charts = {};
-const selMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[], map:[] };
+const selMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[], map:[], par:[] };
 let ovCausa = 'ALL';
 let evPeriodo = 1;
 let mapLabelCount = 30;
-const availMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[], map:[] };
+let dinMinFalhas = 3;
+var _din_top20B = []; // cache global para onclick
+const availMeses = { ov:[], ca:[], geo:[], ev:[], din:[], hm:[], map:[], par:[] };
 
 function dc(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
 function nc(id, cfg){ dc(id); const c = document.getElementById(id); if(!c) return; charts[id] = new Chart(c, cfg); }
@@ -748,6 +801,7 @@ function triggerRender(p){
   if(p==='ev')  renderEvolucao();
   if(p==='din') renderDinamica();
   if(p==='map') renderMapa();
+  if(p==='par') renderPareto();
 }
 
 function onAnoChange(prefix){
@@ -1176,120 +1230,151 @@ function renderHeatmap(){
 }
 
 // ── DINÂMICA DE ENDEREÇOS ──
+
+function setDinMin(n) {
+  dinMinFalhas = n;
+  [3,5,8,10,15,20].forEach(function(v) {
+    var btn = document.getElementById('din-min-'+v);
+    if (btn) btn.classList.toggle('causa-active', v === n);
+  });
+  renderDinamica();
+}
 function renderDinamica(){
-  const ano=gv('din-ano'),ci=gv('din-ci'),causa=gv('din-causa');
-  const meses=selMeses.din.length?selMeses.din:availMeses.din;
-  const d=fd(ano,meses,ci,causa).filter(r=>r.E&&r.E.trim().length>0);
+  var ano   = gv('din-ano');
+  var ci    = gv('din-ci');
+  var causa = gv('din-causa');
+  var meses = selMeses.din.length ? selMeses.din : availMeses.din;
 
-  // TOP 20 BAIRROS
-  const bCount={};
-  d.forEach(r=>{bCount[r.B]=(bCount[r.B]||0)+1;});
-  const sortedB=Object.entries(bCount).sort((a,b2)=>b2[1]-a[1]);
-  const top20B=sortedB.slice(0,20);
-  const totalD=d.length||1;
-  const mbv=top20B[0]?.[1]||1;
+  // Todos os dados para contagem de bairros
+  var dAll = fd(ano, meses, ci, causa);
+  // Só registros com endereço para tabela de endereços
+  var dEnd = dAll.filter(function(r){ return r.E && r.E.trim().length > 0; });
+  var totalD = dAll.length || 1;
 
-  // Bairro chart
-  nc('din-bairros-chart',{type:'bar',data:{
-    labels:top20B.map(([k])=>k.length>22?k.slice(0,21)+'…':k),
-    datasets:[{label:'Falhas',data:top20B.map(([,v])=>v),
-      backgroundColor:top20B.map((_,i)=>`rgba(0,200,255,${0.9-i*0.03})`),borderRadius:5,borderSkipped:false}]
-  },options:{
-    ...co(),
-    indexAxis:'y',
-    plugins:{...co().plugins,legend:{display:false}},
-    scales:{
-      x:{
-        grid:{color:'rgba(255,255,255,0.06)'},
-        ticks:{color:'#e8eaf0',font:{size:11}},
-        border:{color:'rgba(255,255,255,0.1)'}
-      },
-      y:{
-        grid:{display:false},
-        ticks:{color:'#ffffff',font:{size:12,family:'Sora',weight:'600'},padding:8},
-        border:{display:false}
-      }
+  // ── TOP 20 BAIRROS ──
+  var bCount = {};
+  dAll.forEach(function(r){ if(r.B) bCount[r.B] = (bCount[r.B]||0)+1; });
+  var sortedB = Object.entries(bCount).sort(function(a,b){ return b[1]-a[1]; });
+  _din_top20B = sortedB.slice(0,20); // salva globalmente para onclick
+  var mbv = _din_top20B[0] ? _din_top20B[0][1] : 1;
+
+  // Chart
+  var cvs = document.getElementById('din-bairros-chart');
+  if(cvs) cvs.style.height = (_din_top20B.length * 38 + 20) + 'px';
+
+  nc('din-bairros-chart',{
+    type:'bar',
+    data:{
+      labels: _din_top20B.map(function(x){ return x[0].length>22 ? x[0].slice(0,21)+'…' : x[0]; }),
+      datasets:[{
+        label:'Falhas',
+        data: _din_top20B.map(function(x){ return x[1]; }),
+        backgroundColor: _din_top20B.map(function(_,i){
+          return i===0?'rgba(255,77,109,0.85)':i<3?'rgba(255,165,0,0.75)':'rgba(0,200,255,0.65)';
+        }),
+        borderWidth:0, borderRadius:4, borderSkipped:false
+      }]
     },
-    onClick:(e,els)=>{
-      if(els.length){const bairro=top20B[els[0].index][0];showBairroDetalhe(bairro,ano,meses,ci,causa);}
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      indexAxis:'y',
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:function(c){return ' '+c.raw.toLocaleString('pt-BR')+' falhas';}}}
+      },
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#e8eaf0',font:{size:11}},border:{color:'rgba(255,255,255,0.08)'}},
+        y:{grid:{display:false},ticks:{color:'#ffffff',font:{size:12,family:'Sora',weight:'600'},padding:8},border:{display:false}}
+      },
+      onClick:function(e,els){
+        if(els.length) showBairroDetalhe(_din_top20B[els[0].index][0]);
+      }
     }
-  }});
-
-  // Bairro table
-  var bRows='';
-  top20B.forEach(function(item,i){
-    var k=item[0], v=item[1];
-    var bw=Math.max(3,Math.round(v/mbv*100));
-    var col=i===0?'var(--accent2)':i<3?'var(--accent4)':'var(--accent)';
-    var kEsc=k.replace(/'/g,"\'");
-    bRows+='<tr style="border-bottom:1px solid rgba(255,255,255,.03);cursor:pointer;" onclick="showBairroDetalhe(\''+kEsc+'\',\''+ano+'\',\''+meses.join(',')+'\',\''+ci+'\',\''+causa+'\');">'
-      +'<td style="padding:6px 8px;color:var(--muted);font-size:11px;font-family:JetBrains Mono,monospace;">'+String(i+1).padStart(2,'0')+'</td>'
-      +'<td style="padding:6px 8px;">'
-      +'<div style="display:flex;align-items:center;gap:6px;">'
-      +'<div style="flex-shrink:0;width:'+bw+'px;height:4px;border-radius:2px;background:'+col+';opacity:.85;"></div>'
-      +'<span style="font-weight:600;color:var(--accent);text-decoration:underline dotted;font-size:12px;">'+k+'</span>'
-      +'</div></td>'
-      +'<td style="padding:6px 8px;text-align:right;font-weight:700;color:'+col+';font-size:12px;">'+v+'</td>'
-      +'<td style="padding:6px 8px;text-align:right;color:var(--muted);font-size:11px;">'+(v/totalD*100).toFixed(1)+'%</td>'
-      +'</tr>';
   });
-  document.getElementById('din-bairros-table').innerHTML=
+
+  // Tabela de bairros
+  var bRows = '';
+  _din_top20B.forEach(function(item, i){
+    var k = item[0], v = item[1];
+    var bw  = Math.max(3, Math.round(v/mbv*100));
+    var col = i===0 ? 'var(--accent2)' : i<3 ? 'var(--accent4)' : 'var(--accent)';
+    bRows += '<tr style="border-bottom:1px solid rgba(255,255,255,.03);cursor:pointer;" onclick="showBairroDetalhe(_din_top20B['+i+'][0])">'
+      + '<td style="padding:6px 8px;color:var(--muted);font-size:11px;">' + String(i+1).padStart(2,'0') + '</td>'
+      + '<td style="padding:6px 8px;">'
+      + '<div style="display:flex;align-items:center;gap:6px;">'
+      + '<div style="flex-shrink:0;width:'+bw+'px;height:4px;border-radius:2px;background:'+col+';opacity:.85;"></div>'
+      + '<span style="font-weight:600;color:var(--accent);text-decoration:underline dotted;font-size:12px;">'+k+'</span>'
+      + '</div></td>'
+      + '<td style="padding:6px 8px;text-align:right;font-weight:700;color:'+col+';font-size:12px;">'+v+'</td>'
+      + '<td style="padding:6px 8px;text-align:right;color:var(--muted);font-size:11px;">'+(v/totalD*100).toFixed(1)+'%</td>'
+      + '</tr>';
+  });
+
+  document.getElementById('din-bairros-table').innerHTML =
     '<table style="width:100%;border-collapse:collapse;">'
-    +'<thead><tr style="border-bottom:1px solid var(--border);">'
-    +'<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">#</th>'
-    +'<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Bairro / Cidade</th>'
-    +'<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Falhas</th>'
-    +'<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">%</th>'
-    +'</tr></thead>'
-    +'<tbody>'+bRows+'</tbody></table>';
+    + '<thead><tr style="border-bottom:1px solid var(--border);">'
+    + '<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">#</th>'
+    + '<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Bairro / Cidade</th>'
+    + '<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Falhas</th>'
+    + '<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">%</th>'
+    + '</tr></thead><tbody>' + bRows + '</tbody></table>';
 
-  // ENDEREÇOS COM ≥ 3 FALHAS — com bairro associado
-  const eCount={}, eBairro={};
-  d.forEach(r=>{
-    if(!r.E) return;
-    eCount[r.E]=(eCount[r.E]||0)+1;
-    // keep most frequent bairro for this address
-    if(!eBairro[r.E]) eBairro[r.E]={};
-    eBairro[r.E][r.B]=(eBairro[r.E][r.B]||0)+1;
+  // ── ENDEREÇOS MAIS OFENSORES ──
+  // Agrupa por BAIRRO+ENDEREÇO para evitar somar mesmo endereço de bairros diferentes
+  var beCount = {};
+  dEnd.forEach(function(r){
+    var key = r.B + '|||' + r.E;
+    beCount[key] = (beCount[key]||0) + 1;
   });
-  const sortedE=Object.entries(eCount)
-    .filter(([,v])=>v>=3)
-    .sort((a,b2)=>b2[1]-a[1]);
-  const mev=sortedE[0]?.[1]||1;
+  var sortedE = Object.entries(beCount)
+    .filter(function(x){ return x[1] >= dinMinFalhas; })
+    .sort(function(a,b){ return b[1]-a[1]; });
+  var mev = sortedE[0] ? sortedE[0][1] : 1;
 
-  var endRows='';
-  sortedE.forEach(function(item,i){
-    var k=item[0],v=item[1];
-    var intensity=v/mev;
-    var barColor=intensity<0.25?'var(--accent)':intensity<0.55?'var(--accent4)':'var(--accent2)';
-    var bairro=(Object.entries(eBairro[k]||{}).sort(function(a,b2){return b2[1]-a[1];})[0]||['—'])[0];
-    var bw=Math.max(3,Math.round(v/mev*60));
-    endRows+='<tr style="border-bottom:1px solid rgba(255,255,255,.03);">'
-      +'<td style="padding:6px 8px;">'
-      +'<div style="display:flex;align-items:center;gap:6px;">'
-      +'<div style="flex-shrink:0;width:'+bw+'px;height:4px;border-radius:2px;background:'+barColor+';opacity:.85;"></div>'
-      +'<span style="font-size:11px;"><span style="color:var(--muted);font-size:10px;">'+bairro+' · </span>'
-      +'<span style="color:var(--text);font-weight:600;">'+k+'</span></span>'
-      +'</div></td>'
-      +'<td style="padding:6px 8px;text-align:right;font-weight:700;color:'+barColor+';font-size:12px;">'+v+'</td>'
-      +'<td style="padding:6px 8px;text-align:right;color:var(--muted);font-size:11px;">'+(v/totalD*100).toFixed(1)+'%</td>'
-      +'</tr>';
+  var endRows = '';
+  sortedE.forEach(function(item){
+    var parts  = item[0].split('|||');
+    var bairro = parts[0];
+    var k      = parts[1];
+    var v      = item[1];
+    var intensity = v/mev;
+    var barColor  = intensity < 0.25 ? 'var(--accent)' : intensity < 0.55 ? 'var(--accent4)' : 'var(--accent2)';
+    var bw        = Math.max(3, Math.round(v/mev*60));
+    endRows += '<tr style="border-bottom:1px solid rgba(255,255,255,.03);">'
+      + '<td style="padding:6px 8px;">'
+      + '<div style="display:flex;align-items:center;gap:6px;">'
+      + '<div style="flex-shrink:0;width:'+bw+'px;height:4px;border-radius:2px;background:'+barColor+';opacity:.85;"></div>'
+      + '<span style="font-size:11px;"><span style="color:var(--muted);font-size:10px;">'+bairro+' · </span>'
+      + '<span style="color:var(--text);font-weight:600;">'+k+'</span></span>'
+      + '</div></td>'
+      + '<td style="padding:6px 8px;text-align:right;font-weight:700;color:'+barColor+';font-size:12px;">'+v+'</td>'
+      + '<td style="padding:6px 8px;text-align:right;color:var(--muted);font-size:11px;">'+(v/totalD*100).toFixed(1)+'%</td>'
+      + '</tr>';
   });
-  document.getElementById('din-enderecos-table').innerHTML=
-    '<div style="font-size:10px;color:var(--muted);padding:0 0 10px 0;letter-spacing:.5px;text-transform:uppercase;font-weight:600;">'+sortedE.length+' endereços com ≥ 3 falhas</div>'
-    +'<table style="width:100%;border-collapse:collapse;font-size:12px;">'
-    +'<thead><tr style="border-bottom:1px solid var(--border);">'
-    +'<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Bairro · Endereço</th>'
-    +'<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Qtd</th>'
-    +'<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">%</th>'
-    +'</tr></thead>'
-    +'<tbody>'+endRows+'</tbody></table>';
 
-  document.getElementById('din-detalhe').innerHTML=`<p style="color:var(--muted);font-size:12px;padding:12px;">Clique em um bairro na tabela ou no gráfico para ver os endereços detalhados.</p>`;
+  var endTitle = document.getElementById('din-end-title');
+  if(endTitle) endTitle.textContent = '🔥 Endereços Mais Ofensores (≥ '+dinMinFalhas+' falhas)';
+
+  document.getElementById('din-enderecos-table').innerHTML =
+    '<div style="font-size:10px;color:var(--muted);padding:0 0 10px 0;letter-spacing:.5px;text-transform:uppercase;font-weight:600;">'+sortedE.length+' endereços com ≥ '+dinMinFalhas+' falhas</div>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+    + '<thead><tr style="border-bottom:1px solid var(--border);">'
+    + '<th style="padding:6px 8px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Bairro · Endereço</th>'
+    + '<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">Qtd</th>'
+    + '<th style="padding:6px 8px;text-align:right;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.5px;">%</th>'
+    + '</tr></thead><tbody>' + endRows + '</tbody></table>';
+
+  document.getElementById('din-detalhe').innerHTML =
+    '<p style="color:var(--muted);font-size:12px;padding:12px;">Clique em um bairro na tabela ou no gráfico para ver os endereços detalhados.</p>';
 }
 
-function showBairroDetalhe(bairro, ano, mesesStr, ci, causa){
-  const meses=mesesStr.split(',').filter(Boolean);
+
+function showBairroDetalhe(bairro){
+  // Usa os filtros ativos diretamente — sem passar por string/onclick
+  const ano   = gv('din-ano');
+  const ci    = gv('din-ci');
+  const causa = gv('din-causa');
+  const meses = selMeses.din.length ? selMeses.din : availMeses.din;
   const d=fd(ano,meses,ci,causa).filter(r=>r.B===bairro&&r.E&&r.E.trim().length>0);
   if(!d.length){document.getElementById('din-detalhe').innerHTML=`<p style="color:var(--muted);padding:12px;">Sem endereços para ${bairro}.</p>`;return;}
   const eCount={};d.forEach(r=>{eCount[r.E]=(eCount[r.E]||0)+1;});
@@ -1332,6 +1417,15 @@ function init(){
   refreshChips('ev',lastAno,true);
   ['ov','ca','geo','din'].forEach(p=>selLastMes(p));
 
+  // Pareto — popula ano e chips
+  const parSel = document.getElementById('par-ano');
+  if(parSel) {
+    ANOS.forEach(a=>{const o=document.createElement('option');o.value=a;o.textContent=a;parSel.appendChild(o);});
+    parSel.value = lastAno;
+    refreshChips('par', lastAno, false);
+    selAllMeses('par');
+  }
+
   document.getElementById('loading').style.display='none';
   document.getElementById('last-update').textContent=`Atualizado: ${new Date().toLocaleDateString('pt-BR')} · ${DATA.length.toLocaleString('pt-BR')} registros`;
   renderOverview();
@@ -1342,27 +1436,73 @@ const PARETO_BAIRROS=["GUARULHOS", "SANTO AMARO", "BARUERI", "ITAIM PAULISTA", "
 const PARETO_QTDES=[389, 340, 247, 211, 203, 182, 180, 172, 168, 152, 145, 141, 141, 140, 138, 134, 133, 132, 130, 128, 128, 123, 123, 121, 120, 110, 109, 100, 98, 95];
 const PARETO_ACUMS=[8.22, 15.4, 20.62, 25.08, 29.37, 33.21, 37.02, 40.65, 44.2, 47.41, 50.48, 53.45, 56.43, 59.39, 62.31, 65.14, 67.95, 70.74, 73.48, 76.19, 78.89, 81.49, 84.09, 86.65, 89.18, 91.51, 93.81, 95.92, 97.99, 100.0];
 const PARETO_PCTS=[8.22, 7.18, 5.22, 4.46, 4.29, 3.85, 3.8, 3.63, 3.55, 3.21, 3.06, 2.98, 2.98, 2.96, 2.92, 2.83, 2.81, 2.79, 2.75, 2.7, 2.7, 2.6, 2.6, 2.56, 2.54, 2.32, 2.3, 2.11, 2.07, 2.01];
-let paretoRendered=false;
+
+function onParAnoChange(){
+  var ano = gv('par-ano');
+  refreshChips('par', ano, false);
+  selAllMeses('par');
+  renderPareto();
+}
 
 function renderPareto(){
-  if(paretoRendered)return;
-  paretoRendered=true;
+  var ano   = gv('par-ano');
+  var ci    = gv('par-ci')    || 'ALL';
+  var causa = gv('par-causa') || 'ALL';
+  var meses = selMeses.par.length ? selMeses.par : availMeses.par;
 
-  const ctx=document.getElementById('chart-pareto').getContext('2d');
-  new Chart(ctx,{
+  // Filtra dados
+  var d = fd(ano, meses, ci, causa);
+  var totalPeriodo = d.length || 1;
+
+  // Conta por bairro
+  var bCount = {};
+  d.forEach(function(r){ if(r.B) bCount[r.B] = (bCount[r.B]||0)+1; });
+  var sorted = Object.entries(bCount).sort(function(a,b){ return b[1]-a[1]; });
+  var top30  = sorted.slice(0,30);
+  var totalTop30 = top30.reduce(function(s,x){ return s+x[1]; }, 0) || 1;
+  var maxV = top30[0] ? top30[0][1] : 1;
+
+  // Calcula Pareto interno (denominador = top30)
+  var bairros=[], qtdes=[], acums=[], pcts=[];
+  var acum = 0;
+  top30.forEach(function(x){
+    bairros.push(x[0]);
+    qtdes.push(x[1]);
+    var pct = x[1]/totalTop30*100;
+    acum += pct;
+    pcts.push(parseFloat(pct.toFixed(2)));
+    acums.push(parseFloat(acum.toFixed(2)));
+  });
+
+  // Update stats
+  var el1 = document.getElementById('par-stat-total');
+  var el2 = document.getElementById('par-stat-pct');
+  var el3 = document.getElementById('par-stat-top1');
+  var sub  = document.getElementById('par-subtitle');
+  if(el1) el1.textContent = totalTop30.toLocaleString('pt-BR');
+  if(el2) el2.textContent = (totalTop30/totalPeriodo*100).toFixed(1)+'%';
+  if(el3) el3.textContent = qtdes[0] || '—';
+  if(sub){
+    var mLabel = meses.length === MO.length ? 'Todos os meses'
+      : meses.map(function(m){ return MS[MO.indexOf(m)]; }).join(', ');
+    sub.textContent = (ano==='ALL'?'Todos os anos':ano)+' · '+mLabel+' · '+totalTop30.toLocaleString('pt-BR')+' falhas no Top 30';
+  }
+
+  // Rebuild chart using nc() so it's tracked in charts{} for proper destroy
+  nc('chart-pareto',{
     data:{
-      labels:PARETO_BAIRROS,
+      labels: bairros,
       datasets:[
-        {type:'bar',label:'Qtde Falhas',data:PARETO_QTDES,
-          backgroundColor:PARETO_QTDES.map((_,i)=>i<3?'rgba(255,77,109,0.85)':i<7?'rgba(255,165,0,0.75)':'rgba(0,200,255,0.65)'),
-          borderColor:PARETO_QTDES.map((_,i)=>i<3?'rgba(255,77,109,1)':i<7?'rgba(255,165,0,1)':'rgba(0,200,255,1)'),
+        {type:'bar',label:'Qtde Falhas',data:qtdes,
+          backgroundColor:qtdes.map(function(_,i){ return i<3?'rgba(255,77,109,0.85)':i<7?'rgba(255,165,0,0.75)':'rgba(0,200,255,0.65)'; }),
+          borderColor:qtdes.map(function(_,i){ return i<3?'rgba(255,77,109,1)':i<7?'rgba(255,165,0,1)':'rgba(0,200,255,1)'; }),
           borderWidth:1,borderRadius:4,borderSkipped:false,yAxisID:'y',order:2},
-        {type:'line',label:'% Acumulada',data:PARETO_ACUMS,
+        {type:'line',label:'% Acumulada',data:acums,
           borderColor:'rgba(255,77,109,1)',backgroundColor:'rgba(255,77,109,0.05)',
           borderWidth:2.5,pointRadius:4,pointHoverRadius:6,
           pointBackgroundColor:'rgba(255,77,109,1)',pointBorderColor:'#080c14',pointBorderWidth:2,
           fill:true,tension:0.3,yAxisID:'y2',order:1},
-        {type:'line',label:'Limite 80%',data:Array(30).fill(80),
+        {type:'line',label:'Limite 80%',data:Array(top30.length).fill(80),
           borderColor:'rgba(255,165,0,0.7)',borderWidth:1.5,borderDash:[6,4],
           pointRadius:0,fill:false,yAxisID:'y2',order:0}
       ]
@@ -1376,10 +1516,10 @@ function renderPareto(){
           backgroundColor:'rgba(13,18,32,0.95)',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,
           titleColor:'#e8eaf0',bodyColor:'#9ca3af',padding:12,
           callbacks:{
-            title:items=>items[0].label,
-            label:item=>{
-              if(item.datasetIndex===0)return'  Falhas: '+item.raw.toLocaleString('pt-BR');
-              if(item.datasetIndex===1)return'  Acumulado: '+item.raw.toFixed(1)+'%';
+            title:function(items){ return items[0].label; },
+            label:function(item){
+              if(item.datasetIndex===0) return '  Falhas: '+item.raw.toLocaleString('pt-BR');
+              if(item.datasetIndex===1) return '  Acumulado: '+item.raw.toFixed(1)+'%';
               return null;
             }
           }
@@ -1394,29 +1534,31 @@ function renderPareto(){
            title:{display:true,text:'Quantidade de Falhas',color:'#9ca3af',font:{size:11}},
            border:{color:'rgba(255,255,255,0.07)'}},
         y2:{position:'right',min:0,max:100,grid:{drawOnChartArea:false},
-            ticks:{color:'rgba(255,77,109,0.9)',font:{size:10},callback:v=>v+'%'},
+            ticks:{color:'rgba(255,77,109,0.9)',font:{size:10},callback:function(v){ return v+'%'; }},
             title:{display:true,text:'% Acumulada',color:'rgba(255,77,109,0.9)',font:{size:11}},
             border:{color:'rgba(255,255,255,0.07)'}}
       }
     }
   });
 
-  const tbody=document.getElementById('pareto-tbl');
-  PARETO_BAIRROS.forEach((b,i)=>{
-    const a=PARETO_ACUMS[i];
-    let bc='';
-    if(a>80){bc='background:rgba(255,77,109,.15);color:var(--accent2)';}
-    else if(a>50){bc='background:rgba(255,165,0,.15);color:var(--accent4)';}
-    else{bc='background:rgba(0,200,255,.15);color:var(--accent)';}
-    const bw=Math.round((PARETO_QTDES[i]/PARETO_QTDES[0])*140);
-    tbody.innerHTML+=`<tr style="border-bottom:1px solid rgba(255,255,255,.03);">
-      <td style="padding:7px 10px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:11px;">${String(i+1).padStart(2,'0')}</td>
-      <td style="padding:7px 10px;font-weight:600;">${b}</td>
-      <td style="padding:7px 10px;text-align:right;font-family:'JetBrains Mono',monospace;">${PARETO_QTDES[i].toLocaleString('pt-BR')}</td>
-      <td style="padding:7px 10px;text-align:right;font-family:'JetBrains Mono',monospace;">${PARETO_PCTS[i].toFixed(2)}%</td>
-      <td style="padding:7px 10px;text-align:right;"><span style="padding:2px 7px;border-radius:10px;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:600;${bc}">${a.toFixed(2)}%</span></td>
-      <td style="padding:7px 10px;"><span style="display:inline-block;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--accent),#0066ff);width:${bw}px;vertical-align:middle;"></span></td>
-    </tr>`;
+  // Rebuild table
+  var tbody = document.getElementById('pareto-tbl');
+  tbody.innerHTML = '';
+  bairros.forEach(function(b,i){
+    var a  = acums[i];
+    var bc = a>80 ? 'background:rgba(255,77,109,.15);color:var(--accent2)'
+           : a>50 ? 'background:rgba(255,165,0,.15);color:var(--accent4)'
+           :        'background:rgba(0,200,255,.15);color:var(--accent)';
+    var bw = Math.round((qtdes[i]/maxV)*140);
+    var tr = '<tr style="border-bottom:1px solid rgba(255,255,255,.03);">'
+      +'<td style="padding:7px 10px;color:var(--muted);font-family:JetBrains Mono,monospace;font-size:11px;">'+String(i+1).padStart(2,'0')+'</td>'
+      +'<td style="padding:7px 10px;font-weight:600;">'+b+'</td>'
+      +'<td style="padding:7px 10px;text-align:right;font-family:JetBrains Mono,monospace;">'+qtdes[i].toLocaleString('pt-BR')+'</td>'
+      +'<td style="padding:7px 10px;text-align:right;font-family:JetBrains Mono,monospace;">'+pcts[i].toFixed(2)+'%</td>'
+      +'<td style="padding:7px 10px;text-align:right;"><span style="padding:2px 7px;border-radius:10px;font-size:10px;font-family:JetBrains Mono,monospace;font-weight:600;'+bc+'">'+a.toFixed(2)+'%</span></td>'
+      +'<td style="padding:7px 10px;"><span style="display:inline-block;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--accent),#0066ff);width:'+bw+'px;vertical-align:middle;"></span></td>'
+      +'</tr>';
+    tbody.innerHTML += tr;
   });
 }
 
@@ -1448,8 +1590,7 @@ async function liveRefresh(){
     if(!json.ok) throw new Error(json.error||'Erro na API');
 
     DATA=json.data;
-    paretoRendered=false;
-
+    
     // Recalcula anos disponíveis
     ANOS=[...new Set(DATA.map(r=>r.A))].sort();
     const lastAno=ANOS[ANOS.length-1];
@@ -1499,7 +1640,17 @@ async function liveRefresh(){
     refreshChips('ev', document.getElementById('ev-ano')?.value||lastAno, true);
     if(mapSel) refreshChips('map', lastAno, false);
 
-    document.getElementById('last-update').textContent=
+    // Rebuild par-ano
+    var parSel2=document.getElementById('par-ano');
+    if(parSel2){
+      var curPar=parSel2.value;
+      parSel2.innerHTML='<option value="ALL">Todos os Anos</option>';
+      ANOS.forEach(function(a){var o=document.createElement('option');o.value=a;o.textContent=a;parSel2.appendChild(o);});
+      parSel2.value=curPar||lastAno;
+      refreshChips('par',parSel2.value,false);
+    }
+
+        document.getElementById('last-update').textContent=
       '🔄 '+new Date().toLocaleString('pt-BR')+' · '+DATA.length.toLocaleString('pt-BR')+' registros · Drive ao vivo';
 
     btn.textContent='✅ Atualizado!';
@@ -1707,6 +1858,16 @@ function renderMapa() {
 }
 
 function initMapa() {
+  if (typeof L === 'undefined') {
+    document.getElementById('mapa-sp').innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;flex-direction:column;gap:12px;">'
+      +'<div style="font-size:32px;">🗺️</div>'
+      +'<div>Carregando mapa...</div>'
+      +'</div>';
+    // Retry after 1s
+    setTimeout(initMapa, 1000);
+    return;
+  }
   // Popula select de ano somente se ainda vazio
   var sel = document.getElementById('map-ano');
   if (sel && ANOS && sel.options.length <= 1) {
